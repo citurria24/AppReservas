@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Ingresar · TuTurnoUy{% endblock %}
+{% block content %}
+<section class="login-shell">
+  <div class="login-copy">
+    <p class="eyebrow">Gestión simple</p>
+    <h1>Tu agenda empieza acá.</h1>
+    <p>Ingresá al panel de tu peluquería para ver las sucursales y servicios que tenés autorizados.</p>
+  </div>
+  <form method="post" class="panel login-form">
+    {% csrf_token %}
+    <h2>Ingresar</h2>
+    {% if form.errors %}<p class="error">Usuario o contraseña incorrectos.</p>{% endif %}
+    <label for="id_username">Usuario</label>
+    {{ form.username }}
+    <label for="id_password">Contraseña</label>
+    {{ form.password }}
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <button class="primary" type="submit">Entrar al panel</button>
+  </form>
+</section>
+{% endblock %}
+

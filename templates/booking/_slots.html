@@ -1,0 +1,12 @@
+{% if slots %}
+  <div class="slot-grid">
+    {% for slot in slots %}
+      <label class="slot"><input type="radio" name="slot" value="{{ slot.isoformat }}" required><span>{{ slot|date:"H:i" }}</span></label>
+    {% endfor %}
+  </div>
+{% elif incomplete %}
+  <p class="muted">Completá todos los datos para consultar horarios.</p>
+{% else %}
+  <p class="no-slots">No hay horarios disponibles para esta combinación.</p>
+{% endif %}
+

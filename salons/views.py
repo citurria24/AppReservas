@@ -1,0 +1,195 @@
+import secrets
+from datetime import datetime, timedelta
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.hashers import check_password, make_password
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
+from django.db import IntegrityError, transaction
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from .access import accessible_branches_for, active_memberships_for, get_accessible_salon_or_404
+from .booking import available_slots
+from .forms import BookingForm, GuestStartForm, GuestVerifyForm
+from .models import Branch, BranchService, GuestVerification, HairSalon, Professional, Reservation, Service, WorkSchedule
+
+
+@login_required
+def dashboard(request):
+    memberships = active_memberships_for(request.user).prefetch_related("branches", "salon__branches")
+    cards = [
+        {"membership": membership, "branches": membership.authorized_branches()}
+        for membership in memberships
+    ]
+    return render(request, "salons/dashboard.html", {"cards": cards})
+
+
+@login_required
+def salon_detail(request, slug):
+    salon = get_accessible_salon_or_404(request.user, slug)
+    branches = accessible_branches_for(request.user).filter(salon=salon).prefetch_related(
+        "service_offerings__service", "professionals"
+    )
+    membership = active_memberships_for(request.user).get(salon=salon)
+    template = "salons/_salon_detail.html" if request.headers.get("HX-Request") == "true" else "salons/salon_detail.html"
+    return render(request, template, {"salon": salon, "branches": branches, "membership": membership})
+
+
+def public_salon(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    branches = salon.branches.filter(active=True).prefetch_related("service_offerings__service", "professionals")
+    return render(request, "booking/public_salon.html", {"salon": salon, "branches": branches})
+
+
+def guest_start(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    form = GuestStartForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        verification = GuestVerification.objects.create(
+            email=form.cleaned_data["email"].lower(),
+            code_hash=make_password(code),
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+        request.session["pending_guest"] = {
+            "verification_id": verification.id,
+            "salon_id": salon.id,
+            "first_name": form.cleaned_data["first_name"],
+            "last_name": form.cleaned_data["last_name"],
+            "email": form.cleaned_data["email"].lower(),
+            "contact": form.cleaned_data["contact"],
+        }
+        send_mail(
+            "Tu código para reservar en TuTurnoUy",
+            f"Tu código de verificación es {code}. Vence en 15 minutos.",
+            settings.DEFAULT_FROM_EMAIL,
+            [form.cleaned_data["email"]],
+        )
+        if settings.DEBUG:
+            request.session["debug_verification_code"] = code
+        return redirect("guest-verify", slug=salon.slug)
+    return render(request, "booking/guest_start.html", {"salon": salon, "form": form})
+
+
+def guest_verify(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    pending = request.session.get("pending_guest")
+    if not pending or pending.get("salon_id") != salon.id:
+        return redirect("guest-start", slug=salon.slug)
+    verification = get_object_or_404(GuestVerification, id=pending.get("verification_id"), email=pending.get("email"))
+    form = GuestVerifyForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        verification.attempts += 1
+        if verification.is_valid and check_password(form.cleaned_data["code"], verification.code_hash):
+            verification.verified_at = timezone.now()
+            verification.save(update_fields=["attempts", "verified_at"])
+            request.session["verified_guest"] = {
+                "salon_id": salon.id,
+                "first_name": pending["first_name"],
+                "last_name": pending["last_name"],
+                "email": pending["email"],
+                "contact": pending["contact"],
+                "verified_at": timezone.now().isoformat(),
+            }
+            request.session.pop("pending_guest", None)
+            request.session.pop("debug_verification_code", None)
+            return redirect("booking-create", slug=salon.slug)
+        verification.save(update_fields=["attempts"])
+        form.add_error("code", "El código es incorrecto, venció o superó el máximo de intentos.")
+    return render(
+        request,
+        "booking/guest_verify.html",
+        {"salon": salon, "form": form, "email": pending["email"], "debug_code": request.session.get("debug_verification_code") if settings.DEBUG else None},
+    )
+
+
+def _verified_guest(request, salon):
+    guest = request.session.get("verified_guest")
+    if not guest or guest.get("salon_id") != salon.id:
+        return None
+    try:
+        verified_at = datetime.fromisoformat(guest["verified_at"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if verified_at < timezone.now() - timedelta(hours=24):
+        return None
+    return guest
+
+
+def booking_create(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    guest = _verified_guest(request, salon)
+    if not guest:
+        return redirect("guest-start", slug=salon.slug)
+    initial_date = timezone.localdate() + timedelta(days=1)
+    active_weekdays = set(
+        WorkSchedule.objects.filter(professional__salon=salon).values_list("weekday", flat=True)
+    )
+    for _ in range(7):
+        if initial_date.weekday() in active_weekdays:
+            break
+        initial_date += timedelta(days=1)
+    form = BookingForm(
+        request.POST or None,
+        salon=salon,
+        initial={"date": initial_date} if request.method == "GET" else None,
+    )
+    if request.method == "POST" and form.is_valid():
+        branch = form.cleaned_data["branch"]
+        service = form.cleaned_data["service"]
+        professional = form.cleaned_data["professional"]
+        day = form.cleaned_data["date"]
+        slots = available_slots(salon=salon, branch=branch, service=service, professional=professional, day=day)
+        selected = next((slot for slot in slots if slot.isoformat() == form.cleaned_data["slot"]), None)
+        if not selected:
+            form.add_error("slot", "Ese horario ya no está disponible. Elegí otro.")
+        else:
+            offering = BranchService.objects.get(branch=branch, service=service, active=True)
+            try:
+                with transaction.atomic():
+                    reservation = Reservation.objects.create(
+                        salon=salon,
+                        branch=branch,
+                        service=service,
+                        professional=professional,
+                        first_name=guest["first_name"],
+                        last_name=guest["last_name"],
+                        email=guest["email"],
+                        contact=guest["contact"],
+                        starts_at=selected,
+                        ends_at=selected + timedelta(minutes=offering.duration_minutes),
+                        duration_minutes=offering.duration_minutes,
+                        notes=form.cleaned_data["notes"],
+                    )
+            except (IntegrityError, ValidationError):
+                form.add_error("slot", "El horario acaba de ocuparse. Elegí otro.")
+            else:
+                request.session["last_reservation_id"] = reservation.id
+                return redirect("booking-success", slug=salon.slug)
+    return render(request, "booking/booking_form.html", {"salon": salon, "guest": guest, "form": form})
+
+
+def booking_slots(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    if not _verified_guest(request, salon):
+        raise Http404
+    try:
+        branch = salon.branches.get(id=request.GET.get("branch"), active=True)
+        service = salon.services.get(id=request.GET.get("service"), active=True)
+        professional = salon.professionals.get(id=request.GET.get("professional"), active=True)
+        day = datetime.fromisoformat(request.GET.get("date", "")).date()
+    except (Branch.DoesNotExist, Service.DoesNotExist, Professional.DoesNotExist, TypeError, ValueError):
+        return render(request, "booking/_slots.html", {"slots": [], "incomplete": True})
+    slots = available_slots(salon=salon, branch=branch, service=service, professional=professional, day=day)
+    return render(request, "booking/_slots.html", {"slots": slots})
+
+
+def booking_success(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    guest = _verified_guest(request, salon)
+    reservation_id = request.session.get("last_reservation_id")
+    if not guest or not reservation_id:
+        return redirect("public-salon", slug=salon.slug)
+    reservation = get_object_or_404(Reservation, id=reservation_id, salon=salon, email=guest["email"])
+    return render(request, "booking/success.html", {"salon": salon, "reservation": reservation})

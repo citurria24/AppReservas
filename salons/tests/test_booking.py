@@ -1,0 +1,152 @@
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+from django.conf import settings
+from django.contrib.auth.hashers import check_password
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+from unittest.mock import patch
+from psycopg.types.range import Range
+from salons.booking import available_slots
+from salons.models import (
+    Branch,
+    BranchService,
+    GuestVerification,
+    HairSalon,
+    Professional,
+    ProfessionalBranch,
+    ProfessionalService,
+    Reservation,
+    ScheduleBreak,
+    Service,
+    WorkSchedule,
+)
+
+
+def next_weekday(weekday):
+    candidate = timezone.localdate() + timedelta(days=1)
+    while candidate.weekday() != weekday:
+        candidate += timedelta(days=1)
+    return candidate
+
+
+class PublicBookingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.salon = HairSalon.objects.create(name="Público", slug="publico")
+        cls.other_salon = HairSalon.objects.create(name="Ajeno", slug="ajeno")
+        cls.branch = Branch.objects.create(salon=cls.salon, name="Centro", address="Principal 1")
+        cls.other_branch = Branch.objects.create(salon=cls.other_salon, name="Otra", address="Otra 2")
+        cls.service = Service.objects.create(salon=cls.salon, name="Corte")
+        cls.professional = Professional.objects.create(salon=cls.salon, display_name="Alex")
+        ProfessionalBranch.objects.create(professional=cls.professional, branch=cls.branch)
+        ProfessionalService.objects.create(professional=cls.professional, service=cls.service)
+        BranchService.objects.create(branch=cls.branch, service=cls.service, duration_minutes=30)
+        cls.day = next_weekday(0)
+        cls.schedule = WorkSchedule.objects.create(
+            professional=cls.professional,
+            branch=cls.branch,
+            weekday=0,
+            starts_at=time(9),
+            ends_at=time(18),
+        )
+        ScheduleBreak.objects.create(schedule=cls.schedule, starts_at=time(13), ends_at=time(14))
+
+    def verify_guest(self):
+        with patch("salons.views.secrets.randbelow", return_value=123456):
+            response = self.client.post(
+                reverse("guest-start", args=[self.salon.slug]),
+                {"first_name": "Cliente", "last_name": "Demo", "email": "cliente@example.test", "contact": "099 123 456"},
+            )
+        self.assertRedirects(response, reverse("guest-verify", args=[self.salon.slug]))
+        code = "123456"
+        verification = GuestVerification.objects.get(email="cliente@example.test")
+        self.assertTrue(check_password(code, verification.code_hash))
+        response = self.client.post(reverse("guest-verify", args=[self.salon.slug]), {"code": code})
+        self.assertRedirects(response, reverse("booking-create", args=[self.salon.slug]))
+
+    def test_public_link_is_available_without_login(self):
+        response = self.client.get(reverse("public-salon", args=[self.salon.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reservar un turno")
+        self.assertContains(response, "Corte")
+
+    def test_guest_email_verification_and_booking_flow(self):
+        self.verify_guest()
+        slots = available_slots(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            day=self.day,
+        )
+        selected = slots[0]
+        response = self.client.post(
+            reverse("booking-create", args=[self.salon.slug]),
+            {
+                "branch": self.branch.id,
+                "service": self.service.id,
+                "professional": self.professional.id,
+                "date": self.day.isoformat(),
+                "slot": selected.isoformat(),
+                "notes": "Primera visita",
+            },
+        )
+        self.assertRedirects(response, reverse("booking-success", args=[self.salon.slug]))
+        reservation = Reservation.objects.get()
+        self.assertEqual(reservation.email, "cliente@example.test")
+        self.assertEqual(reservation.duration_minutes, 30)
+
+    def test_availability_does_not_cross_break_or_closing_time(self):
+        slots = available_slots(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            day=self.day,
+        )
+        local_times = {timezone.localtime(slot).time() for slot in slots}
+        self.assertIn(time(12, 30), local_times)
+        self.assertNotIn(time(12, 45), local_times)
+        self.assertNotIn(time(13, 0), local_times)
+        self.assertIn(time(17, 30), local_times)
+        self.assertNotIn(time(17, 45), local_times)
+
+    def test_booking_form_rejects_objects_from_another_salon(self):
+        self.verify_guest()
+        response = self.client.post(
+            reverse("booking-create", args=[self.salon.slug]),
+            {
+                "branch": self.other_branch.id,
+                "service": self.service.id,
+                "professional": self.professional.id,
+                "date": self.day.isoformat(),
+                "slot": "invalid",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("branch", response.context["form"].errors)
+        self.assertEqual(Reservation.objects.count(), 0)
+
+    def test_postgresql_constraint_rejects_professional_overlap(self):
+        tz = ZoneInfo(settings.TIME_ZONE)
+        starts = timezone.make_aware(datetime.combine(self.day, time(10)), tz)
+        ends = starts + timedelta(minutes=30)
+        base = {
+            "salon": self.salon,
+            "branch": self.branch,
+            "service": self.service,
+            "professional": self.professional,
+            "first_name": "A",
+            "last_name": "B",
+            "contact": "099",
+            "starts_at": starts,
+            "ends_at": ends,
+            "occupied_range": Range(starts, ends, bounds="[)"),
+            "duration_minutes": 30,
+        }
+        Reservation.objects.bulk_create([Reservation(email="a@example.test", **base)])
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Reservation.objects.bulk_create([Reservation(email="b@example.test", **base)])

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Mi panel · TuTurnoUy{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <p class="eyebrow">Panel de trabajo</p>
+  <h1>Hola, {{ user.first_name|default:user.username }}</h1>
+  <p>Estas son las peluquerías y sucursales a las que tenés acceso.</p>
+</section>
+
+{% if cards %}
+  <div class="card-grid">
+    {% for card in cards %}
+      <article class="panel salon-card">
+        <div class="card-top">
+          <div>
+            <p class="role">{{ card.membership.get_role_display }}</p>
+            <h2>{{ card.membership.salon.name }}</h2>
+          </div>
+          <span class="status">Activa</span>
+        </div>
+        <h3>Sucursales autorizadas</h3>
+        <ul class="branch-list">
+          {% for branch in card.branches %}
+            <li><span>{{ branch.name }}</span><small>{{ branch.address }}</small></li>
+          {% empty %}
+            <li class="muted">No tenés sucursales asignadas.</li>
+          {% endfor %}
+        </ul>
+        <a class="primary action" href="{% url 'salon-detail' card.membership.salon.slug %}"
+           hx-get="{% url 'salon-detail' card.membership.salon.slug %}"
+           hx-target="main"
+           hx-swap="innerHTML show:top"
+           hx-push-url="true">Ver detalle</a>
+        <a class="secondary action" href="{% url 'public-salon' card.membership.salon.slug %}" target="_blank" rel="noopener">Abrir enlace público</a>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="panel empty"><h2>Sin accesos asignados</h2><p>Contactá al administrador de la plataforma.</p></div>
+{% endif %}
+{% endblock %}

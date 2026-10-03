@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Reserva confirmada · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="success-card panel">
+  <div class="success-mark">✓</div>
+  <p class="eyebrow">Reserva confirmada</p>
+  <h1>¡Te esperamos, {{ reservation.first_name }}!</h1>
+  <dl class="summary">
+    <div><dt>Fecha</dt><dd>{{ reservation.starts_at|date:"l d \d\e F, H:i" }}</dd></div>
+    <div><dt>Lugar</dt><dd>{{ reservation.branch.name }} · {{ reservation.branch.address }}</dd></div>
+    <div><dt>Servicio</dt><dd>{{ reservation.service.name }} · {{ reservation.duration_minutes }} min</dd></div>
+    <div><dt>Profesional</dt><dd>{{ reservation.professional.display_name }}</dd></div>
+  </dl>
+  <a class="primary" href="{% url 'public-salon' salon.slug %}">Volver a {{ salon.name }}</a>
+</section>
+{% endblock %}
+

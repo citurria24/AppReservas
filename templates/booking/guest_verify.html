@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Verificar correo · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="booking-shell narrow">
+  <div class="page-heading">
+    <p class="eyebrow">Paso 2 de 3</p>
+    <h1>Revisá tu correo</h1>
+    <p>Ingresá el código de seis dígitos enviado a <strong>{{ email }}</strong>.</p>
+  </div>
+  {% if debug_code %}<div class="demo-code"><span>Modo desarrollo</span><strong>{{ debug_code }}</strong><small>Este código solo se muestra con DEBUG activo.</small></div>{% endif %}
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    <div class="field"><label for="{{ form.code.id_for_label }}">{{ form.code.label }}</label>{{ form.code }}{{ form.code.errors }}</div>
+    <button class="primary" type="submit">Verificar y continuar</button>
+  </form>
+</section>
+{% endblock %}
+

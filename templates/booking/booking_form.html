@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Elegir turno · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <p class="eyebrow">Paso 3 de 3</p>
+  <h1>Elegí tu turno</h1>
+  <p>Reserva para {{ guest.first_name }} {{ guest.last_name }} en {{ salon.name }}.</p>
+</section>
+<form id="booking-form" method="post" class="panel booking-form wide"
+      hx-get="{% url 'booking-slots' salon.slug %}"
+      hx-trigger="change from:select, change from:input[type='date']"
+      hx-target="#slots" hx-include="#booking-form">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="booking-grid">
+    <div class="field"><label for="{{ form.branch.id_for_label }}">{{ form.branch.label }}</label>{{ form.branch }}{{ form.branch.errors }}</div>
+    <div class="field"><label for="{{ form.service.id_for_label }}">{{ form.service.label }}</label>{{ form.service }}{{ form.service.errors }}</div>
+    <div class="field"><label for="{{ form.professional.id_for_label }}">{{ form.professional.label }}</label>{{ form.professional }}{{ form.professional.errors }}</div>
+    <div class="field"><label for="{{ form.date.id_for_label }}">{{ form.date.label }}</label>{{ form.date }}{{ form.date.errors }}</div>
+  </div>
+  {{ form.slot }}{{ form.slot.errors }}
+  <fieldset class="slots-fieldset"><legend>Horarios disponibles</legend><div id="slots"><p class="muted">Completá sucursal, servicio, profesional y fecha.</p></div></fieldset>
+  <div class="field"><label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>{{ form.notes }}{{ form.notes.errors }}</div>
+  <button class="primary" type="submit">Confirmar reserva</button>
+</form>
+{% endblock %}
+

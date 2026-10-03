@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Identificación · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="booking-shell">
+  <div class="page-heading">
+    <p class="eyebrow">Paso 1 de 3</p>
+    <h1>¿A nombre de quién?</h1>
+    <p>Te enviaremos un código para verificar el correo antes de reservar en {{ salon.name }}.</p>
+  </div>
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Enviar código</button>
+  </form>
+</section>
+{% endblock %}
+

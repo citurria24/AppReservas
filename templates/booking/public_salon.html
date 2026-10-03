@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Reservar en {{ salon.name }} · TuTurnoUy{% endblock %}
+{% block content %}
+<section class="public-hero">
+  <div>
+    <p class="eyebrow">Reservas online</p>
+    <h1>{{ salon.name }}</h1>
+    <p>Elegí cómo querés atenderte y encontrá un horario disponible.</p>
+  </div>
+  <a class="primary public-cta" href="{% url 'guest-start' salon.slug %}">Reservar un turno</a>
+</section>
+<div class="card-grid">
+  {% for branch in branches %}
+    <article class="panel branch-card">
+      <h2>{{ branch.name }}</h2>
+      <p>{{ branch.address }}{% if branch.phone %} · {{ branch.phone }}{% endif %}</p>
+      <h3>Servicios disponibles</h3>
+      <ul class="service-list">
+        {% for offering in branch.service_offerings.all %}
+          {% if offering.active and offering.service.active %}<li><span>{{ offering.service.name }}</span><strong>{{ offering.duration_minutes }} min</strong></li>{% endif %}
+        {% empty %}<li class="muted">Próximamente.</li>{% endfor %}
+      </ul>
+      <h3>Profesionales</h3>
+      <div class="chips">{% for professional in branch.professionals.all %}{% if professional.active %}<span>{{ professional.display_name }}</span>{% endif %}{% endfor %}</div>
+    </article>
+  {% endfor %}
+</div>
+{% endblock %}
+
