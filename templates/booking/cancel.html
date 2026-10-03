@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Gestionar reserva · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="success-card panel">
+  {% if cancelled_now %}
+    <div class="success-mark">✓</div>
+    <p class="eyebrow">Cancelación registrada</p>
+    <h1>Tu reserva fue cancelada.</h1>
+  {% elif reservation.status == "cancelled_client" or reservation.status == "cancelled_salon" %}
+    <p class="eyebrow">Reserva cancelada</p>
+    <h1>Esta reserva ya no está activa.</h1>
+  {% elif not reservation.can_client_cancel %}
+    <p class="eyebrow">Fuera del plazo</p>
+    <h1>Ya no es posible cancelar online.</h1>
+    <p>Comunicate con {{ salon.name }} al {{ reservation.branch.phone|default:"teléfono del local" }}.</p>
+  {% else %}
+    <p class="eyebrow">Gestionar reserva</p>
+    <h1>{{ reservation.first_name }}, ¿querés cancelar?</h1>
+  {% endif %}
+  <dl class="summary">
+    <div><dt>Fecha</dt><dd>{{ reservation.starts_at|date:"d/m/Y H:i" }}</dd></div>
+    <div><dt>Sucursal</dt><dd>{{ reservation.branch.name }} · {{ reservation.branch.address }}</dd></div>
+    <div><dt>Servicio</dt><dd>{{ reservation.service.name }} con {{ reservation.professional.display_name }}</dd></div>
+    <div><dt>Plazo</dt><dd>{{ reservation.client_cancellation_deadline|date:"d/m/Y H:i" }}</dd></div>
+  </dl>
+  {% if reservation.can_client_cancel %}
+    <form method="post">{% csrf_token %}<button class="danger-button" type="submit">Sí, cancelar mi reserva</button></form>
+  {% endif %}
+  <a class="secondary action" href="{% url 'public-salon' salon.slug %}">Volver al local</a>
+</section>
+{% endblock %}
+

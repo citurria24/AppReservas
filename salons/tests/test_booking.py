@@ -97,6 +97,7 @@ class PublicBookingTests(TestCase):
         reservation = Reservation.objects.get()
         self.assertEqual(reservation.email, "cliente@example.test")
         self.assertEqual(reservation.duration_minutes, 30)
+        self.assertEqual(reservation.cancellation_notice_hours, self.salon.cancellation_notice_hours)
 
     def test_availability_does_not_cross_break_or_closing_time(self):
         slots = available_slots(

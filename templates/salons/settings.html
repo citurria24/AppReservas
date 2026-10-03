@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Configuración · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="booking-shell">
+  <div class="page-heading">
+    <a class="back" href="{% url 'salon-detail' salon.slug %}">← Volver a {{ salon.name }}</a>
+    <p class="eyebrow">Políticas de reservas</p>
+    <h1>Cancelaciones</h1>
+    <p>Definí hasta qué momento puede cancelar un cliente. Los cambios afectan únicamente a reservas nuevas.</p>
+  </div>
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    {% if saved %}<div class="success-notice">Configuración guardada.</div>{% endif %}
+    <div class="field">
+      <label for="{{ form.cancellation_notice_hours.id_for_label }}">{{ form.cancellation_notice_hours.label }}</label>
+      {{ form.cancellation_notice_hours }}
+      <small class="muted">{{ form.cancellation_notice_hours.help_text }}</small>
+      {{ form.cancellation_notice_hours.errors }}
+    </div>
+    <button class="primary" type="submit">Guardar política</button>
+  </form>
+</section>
+{% endblock %}
+

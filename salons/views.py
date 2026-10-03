@@ -20,8 +20,8 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
-from .forms import BookingForm, GuestStartForm, GuestVerifyForm
-from .models import Branch, BranchService, GuestVerification, HairSalon, Professional, Reservation, Service, WorkSchedule
+from .forms import BookingForm, GuestStartForm, GuestVerifyForm, SalonPolicyForm
+from .models import Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, Service, WorkSchedule
 
 
 @login_required
@@ -42,7 +42,30 @@ def salon_detail(request, slug):
     )
     membership = active_memberships_for(request.user).get(salon=salon)
     template = "salons/_salon_detail.html" if request.headers.get("HX-Request") == "true" else "salons/salon_detail.html"
-    return render(request, template, {"salon": salon, "branches": branches, "membership": membership})
+    return render(
+        request,
+        template,
+        {
+            "salon": salon,
+            "branches": branches,
+            "membership": membership,
+            "can_configure": membership.role in {Membership.Role.OWNER, Membership.Role.ADMIN},
+        },
+    )
+
+
+@login_required
+def salon_settings(request, slug):
+    salon = get_accessible_salon_or_404(request.user, slug)
+    membership = active_memberships_for(request.user).get(salon=salon)
+    if membership.role not in {Membership.Role.OWNER, Membership.Role.ADMIN}:
+        raise PermissionDenied
+    form = SalonPolicyForm(request.POST or None, instance=salon)
+    saved = False
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        saved = True
+    return render(request, "salons/settings.html", {"salon": salon, "form": form, "saved": saved})
 
 
 @login_required
@@ -229,12 +252,25 @@ def booking_create(request, slug):
                         starts_at=selected,
                         ends_at=selected + timedelta(minutes=offering.duration_minutes),
                         duration_minutes=offering.duration_minutes,
+                        cancellation_notice_hours=salon.cancellation_notice_hours,
                         notes=form.cleaned_data["notes"],
                     )
             except (IntegrityError, ValidationError):
                 form.add_error("slot", "El horario acaba de ocuparse. Elegí otro.")
             else:
                 request.session["last_reservation_id"] = reservation.id
+                cancellation_url = request.build_absolute_uri(
+                    reverse("client-cancel", args=[salon.slug, reservation.cancellation_token])
+                )
+                send_mail(
+                    f"Reserva confirmada en {salon.name}",
+                    (
+                        f"Tu reserva quedó confirmada para {timezone.localtime(reservation.starts_at):%d/%m/%Y a las %H:%M}.\n"
+                        f"Podés consultar o cancelar la reserva en: {cancellation_url}"
+                    ),
+                    settings.DEFAULT_FROM_EMAIL,
+                    [reservation.email],
+                )
                 return redirect("booking-success", slug=salon.slug)
     return render(request, "booking/booking_form.html", {"salon": salon, "guest": guest, "form": form})
 
@@ -262,3 +298,22 @@ def booking_success(request, slug):
         return redirect("public-salon", slug=salon.slug)
     reservation = get_object_or_404(Reservation, id=reservation_id, salon=salon, email=guest["email"])
     return render(request, "booking/success.html", {"salon": salon, "reservation": reservation})
+
+
+def client_cancel(request, slug, token):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    reservation = get_object_or_404(
+        Reservation.objects.select_related("branch", "service", "professional"),
+        salon=salon,
+        cancellation_token=token,
+    )
+    cancelled_now = False
+    if request.method == "POST" and reservation.can_client_cancel:
+        reservation.status = Reservation.Status.CANCELLED_CLIENT
+        reservation.save(update_fields=["status"])
+        cancelled_now = True
+    return render(
+        request,
+        "booking/cancel.html",
+        {"salon": salon, "reservation": reservation, "cancelled_now": cancelled_now},
+    )

@@ -1,6 +1,6 @@
 from django import forms
 from django.utils import timezone
-from .models import Branch, Professional, Service
+from .models import Branch, HairSalon, Professional, Service
 
 
 class GuestStartForm(forms.Form):
@@ -36,3 +36,17 @@ class BookingForm(forms.Form):
             raise forms.ValidationError("Elegí una fecha actual o futura.")
         return value
 
+
+class SalonPolicyForm(forms.ModelForm):
+    class Meta:
+        model = HairSalon
+        fields = ["cancellation_notice_hours"]
+        labels = {"cancellation_notice_hours": "Horas mínimas de anticipación para cancelar"}
+        help_texts = {"cancellation_notice_hours": "El valor vigente se guardará dentro de cada nueva reserva."}
+        widgets = {"cancellation_notice_hours": forms.NumberInput(attrs={"min": 0, "max": 720})}
+
+    def clean_cancellation_notice_hours(self):
+        value = self.cleaned_data["cancellation_notice_hours"]
+        if value > 720:
+            raise forms.ValidationError("La anticipación no puede superar 720 horas (30 días).")
+        return value

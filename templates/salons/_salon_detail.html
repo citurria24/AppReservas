@@ -2,6 +2,7 @@
   <a class="back" href="{% url 'dashboard' %}">← Volver al panel</a>
   <p class="eyebrow">{{ membership.get_role_display }}</p>
   <h1>{{ salon.name }}</h1>
+  {% if can_configure %}<a class="secondary" href="{% url 'salon-settings' salon.slug %}">Configurar políticas</a>{% endif %}
 </section>
 <div class="card-grid">
   {% for branch in branches %}
@@ -23,4 +24,3 @@
     <div class="panel empty"><p>No tenés sucursales autorizadas en esta peluquería.</p></div>
   {% endfor %}
 </div>
-

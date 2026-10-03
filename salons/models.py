@@ -6,12 +6,15 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from psycopg.types.range import Range
+import uuid
+from datetime import timedelta
 
 
 class HairSalon(models.Model):
     name = models.CharField("nombre", max_length=160)
     slug = models.SlugField(unique=True)
     active = models.BooleanField("activa", default=True)
+    cancellation_notice_hours = models.PositiveSmallIntegerField("anticipación mínima para cancelar", default=24)
 
     class Meta:
         ordering = ["name"]
@@ -304,6 +307,7 @@ class Reservation(models.Model):
     occupied_range = DateTimeRangeField("intervalo ocupado")
     duration_minutes = models.PositiveSmallIntegerField("duración guardada")
     cancellation_notice_hours = models.PositiveSmallIntegerField("anticipación para cancelar", default=24)
+    cancellation_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     status = models.CharField("estado", max_length=24, choices=Status.choices, default=Status.CONFIRMED)
     notes = models.TextField("notas", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -339,3 +343,11 @@ class Reservation(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} · {self.starts_at:%d/%m/%Y %H:%M}"
+
+    @property
+    def client_cancellation_deadline(self):
+        return self.starts_at - timedelta(hours=self.cancellation_notice_hours)
+
+    @property
+    def can_client_cancel(self):
+        return self.status == self.Status.CONFIRMED and timezone.now() <= self.client_cancellation_deadline
