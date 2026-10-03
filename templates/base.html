@@ -13,6 +13,7 @@
     <a class="brand" href="{% url 'dashboard' %}">TuTurno<span>Uy</span></a>
     {% if user.is_authenticated %}
       <div class="account">
+        <a class="nav-link" href="{% url 'agenda' %}">Agenda</a>
         <span>{{ user.get_full_name|default:user.username }}</span>
         <form method="post" action="{% url 'logout' %}">
           {% csrf_token %}

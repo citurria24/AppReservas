@@ -1,8 +1,10 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from datetime import time
+from datetime import time, timedelta
 from accounts.models import User
-from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, ScheduleBreak, Service, WorkSchedule
+from django.utils import timezone
+from salons.booking import available_slots
+from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, Reservation, ScheduleBreak, Service, WorkSchedule
 
 
 class Command(BaseCommand):
@@ -73,6 +75,39 @@ class Command(BaseCommand):
                     schedule=schedule,
                     starts_at=time(13, 0),
                     defaults={"ends_at": time(14, 0)},
+                )
+
+        demo_day = timezone.localdate() + timedelta(days=1)
+        while demo_day.weekday() == 6:
+            demo_day += timedelta(days=1)
+        demo_reservations = [
+            (norte, centro, corte_norte, diego, "cliente.norte@example.test"),
+            (sur, cordon, corte_sur, vale, "cliente.sur@example.test"),
+        ]
+        for salon, branch, service, professional, email in demo_reservations:
+            Reservation.objects.filter(salon=salon, email=email).delete()
+            slots = available_slots(
+                salon=salon,
+                branch=branch,
+                service=service,
+                professional=professional,
+                day=demo_day,
+            )
+            if slots:
+                offering = BranchService.objects.get(branch=branch, service=service)
+                Reservation.objects.create(
+                    salon=salon,
+                    branch=branch,
+                    service=service,
+                    professional=professional,
+                    first_name="Cliente",
+                    last_name="Demo",
+                    email=email,
+                    contact="099 000 000",
+                    starts_at=slots[0],
+                    ends_at=slots[0] + timedelta(minutes=offering.duration_minutes),
+                    duration_minutes=offering.duration_minutes,
+                    notes="Reserva creada por seed_demo para probar la agenda.",
                 )
 
         self.stdout.write(self.style.SUCCESS("Datos demo listos. Contraseña común: DemoTuTurno2026!"))

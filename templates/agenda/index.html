@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Agenda · TuTurnoUy{% endblock %}
+{% block content %}
+<section class="page-heading agenda-heading">
+  <p class="eyebrow">Operación diaria</p>
+  <h1>Agenda</h1>
+  <p>Reservas visibles según tus peluquerías, sucursales y perfil profesional.</p>
+</section>
+<form class="panel agenda-filters" method="get" action="{% url 'agenda' %}"
+      hx-get="{% url 'agenda' %}" hx-target="#agenda-results" hx-push-url="true"
+      hx-trigger="change, submit">
+  <div class="field">
+    <label for="agenda-date">Fecha</label>
+    <input id="agenda-date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+  </div>
+  <div class="field">
+    <label for="agenda-branch">Sucursal</label>
+    <select id="agenda-branch" name="branch">
+      <option value="">Todas las autorizadas</option>
+      {% for branch in branches %}<option value="{{ branch.id }}" {% if selected_branch == branch.id|stringformat:'s' %}selected{% endif %}>{{ branch.salon.name }} · {{ branch.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="primary" type="submit">Ver agenda</button>
+</form>
+<section id="agenda-results" aria-live="polite">{% include "agenda/_results.html" %}</section>
+{% endblock %}
+

@@ -1,15 +1,24 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password, make_password
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
-from .access import accessible_branches_for, active_memberships_for, get_accessible_salon_or_404
+from .access import (
+    accessible_branches_for,
+    accessible_reservations_for,
+    active_memberships_for,
+    can_complete_reservation,
+    can_manage_reservation,
+    get_accessible_salon_or_404,
+)
 from .booking import available_slots
 from .forms import BookingForm, GuestStartForm, GuestVerifyForm
 from .models import Branch, BranchService, GuestVerification, HairSalon, Professional, Reservation, Service, WorkSchedule
@@ -34,6 +43,66 @@ def salon_detail(request, slug):
     membership = active_memberships_for(request.user).get(salon=salon)
     template = "salons/_salon_detail.html" if request.headers.get("HX-Request") == "true" else "salons/salon_detail.html"
     return render(request, template, {"salon": salon, "branches": branches, "membership": membership})
+
+
+@login_required
+def agenda(request):
+    try:
+        selected_date = datetime.fromisoformat(request.GET.get("date", "")).date()
+    except (TypeError, ValueError):
+        selected_date = timezone.localdate()
+    local_tz = ZoneInfo(settings.TIME_ZONE)
+    day_start = timezone.make_aware(datetime.combine(selected_date, time.min), local_tz)
+    day_end = day_start + timedelta(days=1)
+    reservations = accessible_reservations_for(request.user).filter(starts_at__gte=day_start, starts_at__lt=day_end)
+    branch_id = request.GET.get("branch")
+    if branch_id:
+        reservations = reservations.filter(branch_id=branch_id)
+    items = [
+        {
+            "reservation": reservation,
+            "can_cancel": reservation.status == Reservation.Status.CONFIRMED and can_manage_reservation(request.user, reservation),
+            "can_complete": reservation.status == Reservation.Status.CONFIRMED and can_complete_reservation(request.user, reservation),
+        }
+        for reservation in reservations.order_by("starts_at")
+    ]
+    context = {
+        "items": items,
+        "branches": accessible_branches_for(request.user).select_related("salon"),
+        "selected_date": selected_date,
+        "selected_branch": branch_id or "",
+    }
+    template = "agenda/_results.html" if request.headers.get("HX-Request") == "true" else "agenda/index.html"
+    return render(request, template, context)
+
+
+@login_required
+def reservation_status(request, pk):
+    if request.method != "POST":
+        raise Http404
+    reservation = get_object_or_404(accessible_reservations_for(request.user), pk=pk)
+    action = request.POST.get("action")
+    if reservation.status != Reservation.Status.CONFIRMED:
+        raise PermissionDenied("La reserva ya no admite cambios.")
+    if action == "cancel":
+        if not can_manage_reservation(request.user, reservation):
+            raise PermissionDenied
+        reservation.status = Reservation.Status.CANCELLED_SALON
+    elif action == "complete":
+        if not can_complete_reservation(request.user, reservation):
+            raise PermissionDenied
+        reservation.status = Reservation.Status.COMPLETED
+    else:
+        raise Http404
+    reservation.save(update_fields=["status"])
+    if request.headers.get("HX-Request") == "true":
+        return render(
+            request,
+            "agenda/_reservation.html",
+            {"reservation": reservation, "can_cancel": False, "can_complete": False},
+        )
+    reservation_date = timezone.localtime(reservation.starts_at).date().isoformat()
+    return redirect(f"{reverse('agenda')}?date={reservation_date}")
 
 
 def public_salon(request, slug):

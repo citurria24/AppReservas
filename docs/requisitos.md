@@ -18,6 +18,7 @@ Reglas implementadas:
 - La disponibilidad se calcula con la duración por sucursal, jornadas, descansos, ausencias y reservas existentes; no ofrece turnos que atraviesen un descanso o el cierre.
 - Las reservas se crean dentro de una transacción y PostgreSQL impide solapamientos para un mismo profesional mediante una restricción de exclusión.
 - La duración y una anticipación de cancelación inicial de 24 horas quedan conservadas en cada reserva.
+- La agenda interna filtra por fecha y sucursal respetando el alcance de owner, admin y peluquero. Permite cancelar desde el local o marcar una reserva como atendida según el rol.
 
 ## Alcance posterior registrado, no implementado
 

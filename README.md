@@ -47,6 +47,10 @@ Ingresá nombre, apellido, correo y teléfono. Con `DJANGO_DEBUG=True`, la sigui
 
 Google OAuth todavía requiere registrar la aplicación y aportar sus credenciales. En un entorno real también debe configurarse un backend SMTP o transaccional en lugar del backend de consola.
 
+## Agenda interna
+
+Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlace **Agenda** de la cabecera. Owner ve todas las reservas de su peluquería, admin solo las sucursales asignadas y peluquero únicamente sus propios turnos. Owner/admin pueden cancelar desde el local y los usuarios autorizados pueden marcar una reserva como atendida. `seed_demo` crea una reserva futura por peluquería para probar esta pantalla.
+
 ## Migraciones y datos
 
 - Crear migraciones tras cambiar modelos: `docker compose run --rm web python manage.py makemigrations`

@@ -1,0 +1,30 @@
+<article class="panel reservation-card" id="reservation-{{ reservation.id }}">
+  <div class="reservation-time">
+    <strong>{{ reservation.starts_at|date:"H:i" }}</strong>
+    <span>{{ reservation.ends_at|date:"H:i" }}</span>
+  </div>
+  <div class="reservation-main">
+    <div class="reservation-title">
+      <div><p class="role">{{ reservation.salon.name }} · {{ reservation.branch.name }}</p><h3>{{ reservation.first_name }} {{ reservation.last_name }}</h3></div>
+      <span class="booking-status status-{{ reservation.status }}">{{ reservation.get_status_display }}</span>
+    </div>
+    <p><strong>{{ reservation.service.name }}</strong> con {{ reservation.professional.display_name }} · {{ reservation.duration_minutes }} min</p>
+    <p class="reservation-contact">{{ reservation.contact }} · {{ reservation.email }}</p>
+    {% if reservation.notes %}<p class="reservation-notes">“{{ reservation.notes }}”</p>{% endif %}
+    {% if can_cancel or can_complete %}
+      <div class="reservation-actions">
+        {% if can_complete %}
+          <form method="post" action="{% url 'reservation-status' reservation.id %}" hx-post="{% url 'reservation-status' reservation.id %}" hx-target="closest article" hx-swap="outerHTML">
+            {% csrf_token %}<input type="hidden" name="action" value="complete"><button class="secondary" type="submit">Marcar atendida</button>
+          </form>
+        {% endif %}
+        {% if can_cancel %}
+          <form method="post" action="{% url 'reservation-status' reservation.id %}" hx-post="{% url 'reservation-status' reservation.id %}" hx-target="closest article" hx-swap="outerHTML">
+            {% csrf_token %}<input type="hidden" name="action" value="cancel"><button class="danger-button" type="submit">Cancelar desde el local</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</article>
+

@@ -4,6 +4,8 @@ from . import views
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("peluquerias/<slug:slug>/", views.salon_detail, name="salon-detail"),
+    path("agenda/", views.agenda, name="agenda"),
+    path("agenda/reservas/<int:pk>/estado/", views.reservation_status, name="reservation-status"),
     path("reservar/<slug:slug>/", views.public_salon, name="public-salon"),
     path("reservar/<slug:slug>/invitado/", views.guest_start, name="guest-start"),
     path("reservar/<slug:slug>/verificar/", views.guest_verify, name="guest-verify"),
