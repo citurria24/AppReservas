@@ -62,6 +62,29 @@ class SalonPolicyForm(forms.ModelForm):
         return value
 
 
+class BranchManagementForm(forms.ModelForm):
+    class Meta:
+        model = Branch
+        fields = ["name", "address", "phone", "active"]
+        labels = {
+            "name": "Nombre",
+            "address": "Dirección",
+            "phone": "Teléfono",
+            "active": "Sucursal activa",
+        }
+
+    def __init__(self, *args, salon, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.salon = salon
+
+    def clean_name(self):
+        value = self.cleaned_data["name"].strip()
+        duplicate = Branch.objects.filter(salon=self.salon, name__iexact=value).exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise forms.ValidationError("Ya existe una sucursal con ese nombre.")
+        return value
+
+
 class BookingLimitExceptionForm(forms.ModelForm):
     class Meta:
         model = BookingLimitException

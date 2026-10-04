@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Sucursales · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Estructura del local</p>
+  <h1>Sucursales</h1>
+  <p>Creá y mantené las ubicaciones de {{ salon.name }}. Desactivar una sucursal la quita de los nuevos turnos sin borrar su historial.</p>
+</section>
+
+<div class="management-layout">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    <h2>{% if editing %}Editar {{ editing.name }}{% else %}Nueva sucursal{% endif %}</h2>
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="field{% if field.field.widget.input_type == 'checkbox' %} checkbox-field{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}
+      </div>
+    {% endfor %}
+    <button class="primary" type="submit">{% if editing %}Guardar cambios{% else %}Crear sucursal{% endif %}</button>
+    {% if editing %}<a class="secondary" href="{% url 'branch-management' salon.slug %}">Cancelar edición</a>{% endif %}
+  </form>
+
+  <section>
+    <h2>Sucursales registradas</h2>
+    <div class="exception-list">
+      {% for branch in branches %}
+        <article class="panel management-card">
+          <div>
+            <div><strong>{{ branch.name }}</strong><p>{{ branch.address }}{% if branch.phone %} · {{ branch.phone }}{% endif %}</p></div>
+            <span class="booking-status {% if branch.active %}status-confirmed{% else %}status-cancelled_salon{% endif %}">{% if branch.active %}Activa{% else %}Inactiva{% endif %}</span>
+          </div>
+          <a class="secondary" href="{% url 'branch-edit' salon.slug branch.id %}">Editar</a>
+        </article>
+      {% empty %}<div class="panel empty"><p>No hay sucursales registradas.</p></div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

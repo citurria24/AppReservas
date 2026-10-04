@@ -23,6 +23,7 @@ from .booking import available_slots
 from .forms import (
     BookingForm,
     BookingLimitExceptionForm,
+    BranchManagementForm,
     GuestStartForm,
     GuestVerifyForm,
     ProfessionalAbsenceForm,
@@ -85,6 +86,31 @@ def salon_settings(request, slug):
         request,
         "salons/settings.html",
         {"salon": salon, "form": form, "saved": saved, "is_owner": membership.role == Membership.Role.OWNER},
+    )
+
+
+def _owner_salon_or_403(user, slug):
+    salon = get_accessible_salon_or_404(user, slug)
+    membership = active_memberships_for(user).get(salon=salon)
+    if membership.role != Membership.Role.OWNER:
+        raise PermissionDenied
+    return salon
+
+
+@login_required
+def branch_management(request, slug, pk=None):
+    salon = _owner_salon_or_403(request.user, slug)
+    branch = get_object_or_404(Branch, salon=salon, pk=pk) if pk else None
+    form = BranchManagementForm(request.POST or None, instance=branch, salon=salon)
+    if request.method == "POST" and form.is_valid():
+        saved_branch = form.save(commit=False)
+        saved_branch.salon = salon
+        saved_branch.save()
+        return redirect("branch-management", slug=salon.slug)
+    return render(
+        request,
+        "salons/branches.html",
+        {"salon": salon, "form": form, "editing": branch, "branches": salon.branches.all()},
     )
 
 
