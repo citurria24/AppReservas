@@ -120,3 +120,13 @@ Cada worktree usa su propio `.env` ignorado por Git. Aunque los nombres lógicos
 7. Ejecutar la suite completa, las pruebas específicas de equipo y correo, y `makemigrations --check --dry-run`.
 8. Probar manualmente creación/revocación de miembros, verificación de invitado, recuperación de contraseña y fallos SMTP.
 9. Recién después decidir el merge a `develop` y posteriormente a `main`. Los pushes siguen siendo manuales.
+
+## Estado del bloque de equipo
+
+- Coordinación y entorno aislado: `fbfc921` (`chore: preparar trabajo paralelo aislado`).
+- Implementación: `96f9338` (`feat: gestionar equipo y accesos`).
+- Pruebas específicas: 7 aprobadas sobre `tuturnouy_team`.
+- Suite completa: 59 aprobadas sobre `tuturnouy_team`.
+- Migraciones: no se generaron cambios.
+- Verificación HTTP: login responde `200` en `http://127.0.0.1:8011/`.
+- Publicación: sin merge y sin push, según lo solicitado.
