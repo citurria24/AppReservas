@@ -134,6 +134,44 @@ class BranchServiceManagementForm(forms.ModelForm):
         return cleaned_data
 
 
+class ProfessionalManagementForm(forms.ModelForm):
+    branches = forms.ModelMultipleChoiceField(
+        label="Sucursales",
+        queryset=Branch.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    services = forms.ModelMultipleChoiceField(
+        label="Servicios",
+        queryset=Service.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    class Meta:
+        model = Professional
+        fields = ["display_name", "branches", "services", "active"]
+        labels = {"display_name": "Nombre visible", "active": "Profesional activo"}
+
+    def __init__(self, *args, salon, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.salon = salon
+        self.fields["branches"].queryset = salon.branches.all()
+        self.fields["services"].queryset = salon.services.all()
+        if self.instance.pk:
+            self.fields["branches"].initial = self.instance.branches.all()
+            self.fields["services"].initial = self.instance.services.all()
+
+    def clean_display_name(self):
+        value = self.cleaned_data["display_name"].strip()
+        duplicate = Professional.objects.filter(salon=self.salon, display_name__iexact=value).exclude(
+            pk=self.instance.pk
+        )
+        if duplicate.exists():
+            raise forms.ValidationError("Ya existe un profesional con ese nombre.")
+        return value
+
+
 class BookingLimitExceptionForm(forms.ModelForm):
     class Meta:
         model = BookingLimitException

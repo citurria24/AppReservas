@@ -28,6 +28,7 @@ from .forms import (
     GuestStartForm,
     GuestVerifyForm,
     ProfessionalAbsenceForm,
+    ProfessionalManagementForm,
     RewardProgramForm,
     SalonPolicyForm,
     ScheduleBreakForm,
@@ -178,6 +179,32 @@ def offering_edit(request, slug, pk):
         request,
         "salons/catalog_edit.html",
         {"salon": salon, "form": form, "title": f"Editar {offering.service.name} en {offering.branch.name}", "section": "Servicio por sucursal", "cancel_url": reverse("service-management", args=[salon.slug])},
+    )
+
+
+@login_required
+def professional_management(request, slug, pk=None):
+    salon = _owner_salon_or_403(request.user, slug)
+    professional = get_object_or_404(Professional, salon=salon, pk=pk) if pk else None
+    form = ProfessionalManagementForm(request.POST or None, instance=professional, salon=salon)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            saved_professional = form.save(commit=False)
+            saved_professional.salon = salon
+            saved_professional.save()
+            saved_professional.branches.set(form.cleaned_data["branches"])
+            saved_professional.services.set(form.cleaned_data["services"])
+        return redirect("professional-management", slug=salon.slug)
+    professionals = salon.professionals.prefetch_related("branches", "services")
+    return render(
+        request,
+        "salons/professionals.html",
+        {
+            "salon": salon,
+            "form": form,
+            "editing": professional,
+            "professionals": professionals,
+        },
     )
 
 

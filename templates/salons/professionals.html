@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Profesionales · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Equipo profesional</p>
+  <h1>Profesionales</h1>
+  <p>Asigná cada profesional a las sucursales y servicios donde atiende. Esta condición es independiente de su usuario y rol operativo.</p>
+</section>
+
+<div class="management-layout">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    <h2>{% if editing %}Editar {{ editing.display_name }}{% else %}Nuevo profesional{% endif %}</h2>
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="field{% if field.field.widget.input_type == 'checkbox' %} checkbox-field choice-list{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}
+      </div>
+    {% endfor %}
+    <button class="primary" type="submit">{% if editing %}Guardar cambios{% else %}Crear profesional{% endif %}</button>
+    {% if editing %}<a class="secondary" href="{% url 'professional-management' salon.slug %}">Cancelar edición</a>{% endif %}
+  </form>
+
+  <section>
+    <h2>Equipo registrado</h2>
+    <div class="exception-list">
+      {% for professional in professionals %}
+        <article class="panel management-card professional-card">
+          <div>
+            <strong>{{ professional.display_name }}</strong>
+            <span class="booking-status {% if professional.active %}status-confirmed{% else %}status-cancelled_salon{% endif %}">{% if professional.active %}Activo{% else %}Inactivo{% endif %}</span>
+          </div>
+          <h3>Sucursales</h3>
+          <div class="chips">{% for branch in professional.branches.all %}<span>{{ branch.name }}</span>{% empty %}<span class="muted">Sin sucursales</span>{% endfor %}</div>
+          <h3>Servicios</h3>
+          <div class="chips">{% for service in professional.services.all %}<span>{{ service.name }}</span>{% empty %}<span class="muted">Sin servicios</span>{% endfor %}</div>
+          <a class="secondary" href="{% url 'professional-edit' salon.slug professional.id %}">Editar profesional</a>
+        </article>
+      {% empty %}<div class="panel empty"><p>No hay profesionales registrados.</p></div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
