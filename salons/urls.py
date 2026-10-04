@@ -15,6 +15,7 @@ urlpatterns = [
     path("reservar/<slug:slug>/invitado/", views.guest_start, name="guest-start"),
     path("reservar/<slug:slug>/verificar/", views.guest_verify, name="guest-verify"),
     path("reservar/<slug:slug>/turno/", views.booking_create, name="booking-create"),
+    path("reservar/<slug:slug>/mis-reservas/", views.my_reservations, name="my-reservations"),
     path("reservar/<slug:slug>/horarios/", views.booking_slots, name="booking-slots"),
     path("reservar/<slug:slug>/confirmada/", views.booking_success, name="booking-success"),
     path("reservar/<slug:slug>/cancelar/<uuid:token>/", views.client_cancel, name="client-cancel"),

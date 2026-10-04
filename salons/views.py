@@ -257,7 +257,11 @@ def reservation_status(request, pk):
 def public_salon(request, slug):
     salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
     branches = salon.branches.filter(active=True).prefetch_related("service_offerings__service", "professionals")
-    return render(request, "booking/public_salon.html", {"salon": salon, "branches": branches})
+    return render(
+        request,
+        "booking/public_salon.html",
+        {"salon": salon, "branches": branches, "guest": _verified_guest(request, salon)},
+    )
 
 
 def guest_start(request, slug):
@@ -333,6 +337,22 @@ def _verified_guest(request, salon):
     if verified_at < timezone.now() - timedelta(hours=24):
         return None
     return guest
+
+
+def my_reservations(request, slug):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    guest = _verified_guest(request, salon)
+    if not guest:
+        return redirect("guest-start", slug=salon.slug)
+    reservations = Reservation.objects.filter(
+        salon=salon,
+        email__iexact=guest["email"],
+    ).select_related("branch", "service", "professional").order_by("-starts_at")
+    return render(
+        request,
+        "booking/my_reservations.html",
+        {"salon": salon, "guest": guest, "reservations": reservations},
+    )
 
 
 def booking_create(request, slug):

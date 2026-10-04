@@ -14,7 +14,7 @@
   </dl>
   <p class="muted">Podés cancelar hasta {{ reservation.client_cancellation_deadline|date:"d/m/Y H:i" }}.</p>
   <a class="secondary" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Consultar o cancelar reserva</a>
+  <a class="secondary" href="{% url 'my-reservations' salon.slug %}">Ver mis reservas</a>
   <a class="primary" href="{% url 'public-salon' salon.slug %}">Volver a {{ salon.name }}</a>
 </section>
 {% endblock %}
-

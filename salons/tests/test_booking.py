@@ -79,6 +79,71 @@ class PublicBookingTests(TestCase):
         self.assertContains(response, "Reservar un turno")
         self.assertContains(response, "Corte")
 
+    def test_my_reservations_requires_a_verified_guest(self):
+        response = self.client.get(reverse("my-reservations", args=[self.salon.slug]))
+        self.assertRedirects(response, reverse("guest-start", args=[self.salon.slug]))
+
+    def test_my_reservations_only_lists_verified_email_in_current_salon(self):
+        starts = timezone.now() + timedelta(days=3)
+        own_reservation = Reservation.objects.create(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            first_name="Cliente",
+            last_name="Demo",
+            email="CLIENTE@example.test",
+            contact="099 123 456",
+            starts_at=starts,
+            ends_at=starts + timedelta(minutes=30),
+            duration_minutes=30,
+        )
+        other_customer_service = Service.objects.create(salon=self.salon, name="Servicio de otra persona")
+        Reservation.objects.create(
+            salon=self.salon,
+            branch=self.branch,
+            service=other_customer_service,
+            professional=self.professional,
+            first_name="Otra",
+            last_name="Persona",
+            email="otra@example.test",
+            contact="099 000 000",
+            starts_at=starts + timedelta(hours=1),
+            ends_at=starts + timedelta(hours=1, minutes=30),
+            duration_minutes=30,
+        )
+        other_salon_service = Service.objects.create(salon=self.other_salon, name="Servicio de otra peluquería")
+        other_salon_professional = Professional.objects.create(salon=self.other_salon, display_name="Profesional ajeno")
+        Reservation.objects.create(
+            salon=self.other_salon,
+            branch=self.other_branch,
+            service=other_salon_service,
+            professional=other_salon_professional,
+            first_name="Cliente",
+            last_name="Demo",
+            email="cliente@example.test",
+            contact="099 123 456",
+            starts_at=starts,
+            ends_at=starts + timedelta(minutes=30),
+            duration_minutes=30,
+        )
+
+        self.verify_guest()
+        public_response = self.client.get(reverse("public-salon", args=[self.salon.slug]))
+        response = self.client.get(reverse("my-reservations", args=[self.salon.slug]))
+
+        self.assertContains(public_response, reverse("my-reservations", args=[self.salon.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.service.name)
+        self.assertContains(response, str(own_reservation.cancellation_token))
+        self.assertNotContains(response, other_customer_service.name)
+        self.assertNotContains(response, other_salon_service.name)
+
+    def test_verified_session_cannot_be_reused_for_another_salon(self):
+        self.verify_guest()
+        response = self.client.get(reverse("my-reservations", args=[self.other_salon.slug]))
+        self.assertRedirects(response, reverse("guest-start", args=[self.other_salon.slug]))
+
     def test_guest_email_verification_and_booking_flow(self):
         self.verify_guest()
         slots = available_slots(

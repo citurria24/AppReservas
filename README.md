@@ -45,6 +45,8 @@ No hace falta una cuenta local de cliente. El flujo aprobado usa Google o invita
 
 Ingresá nombre, apellido, correo y teléfono. Con `DJANGO_DEBUG=True`, la siguiente pantalla muestra el código de seis dígitos para facilitar la prueba local; también se imprime en `docker compose logs web`. Luego elegí sucursal, servicio, profesional y fecha. Los datos demo tienen jornadas de lunes a sábado de 09:00 a 18:00, con descanso de 13:00 a 14:00.
 
+Después de verificar el correo, el enlace **Mis reservas** muestra únicamente los turnos asociados a ese correo dentro de la peluquería visitada. Desde allí se puede consultar el detalle y cancelar una reserva cuando todavía está dentro del plazo permitido. La sesión verificada dura 24 horas y no se comparte entre peluquerías.
+
 Google OAuth todavía requiere registrar la aplicación y aportar sus credenciales. En un entorno real también debe configurarse un backend SMTP o transaccional en lugar del backend de consola.
 
 ## Agenda interna
@@ -75,7 +77,7 @@ Los datos demo activan en Estilo Norte una recompensa de 15% después de dos ser
 
 Ejecutar las pruebas reales sobre PostgreSQL: `docker compose run --rm web python manage.py test`
 
-Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
+Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
 
 ## Arquitectura
 

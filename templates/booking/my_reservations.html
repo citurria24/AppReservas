@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Mis reservas · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'public-salon' salon.slug %}">← Volver a {{ salon.name }}</a>
+  <p class="eyebrow">{{ guest.email }}</p>
+  <h1>Mis reservas</h1>
+  <p>Consultá el estado y gestioná las reservas asociadas a tu correo verificado.</p>
+</section>
+{% if reservations %}
+  <div class="client-reservations">
+    {% for reservation in reservations %}
+      <article class="panel client-reservation-card">
+        <div class="reservation-title">
+          <div><p class="role">{{ reservation.branch.name }}</p><h2>{{ reservation.starts_at|date:"d/m/Y H:i" }}</h2></div>
+          <span class="booking-status status-{{ reservation.status }}">{{ reservation.get_status_display }}</span>
+        </div>
+        <p><strong>{{ reservation.service.name }}</strong> con {{ reservation.professional.display_name }}</p>
+        {% if reservation.reward_discount_percent %}<p class="reward-inline">Recompensa aplicada: {{ reservation.reward_discount_percent }}%</p>{% endif %}
+        <a class="secondary action" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Ver detalle{% if reservation.can_client_cancel %} o cancelar{% endif %}</a>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="panel empty"><h2>Todavía no tenés reservas</h2><a class="primary" href="{% url 'booking-create' salon.slug %}">Reservar ahora</a></div>
+{% endif %}
+{% endblock %}

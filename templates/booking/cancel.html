@@ -27,6 +27,6 @@
     <form method="post">{% csrf_token %}<button class="danger-button" type="submit">Sí, cancelar mi reserva</button></form>
   {% endif %}
   <a class="secondary action" href="{% url 'public-salon' salon.slug %}">Volver al local</a>
+  <a class="secondary action" href="{% url 'my-reservations' salon.slug %}">Ver mis reservas</a>
 </section>
 {% endblock %}
-

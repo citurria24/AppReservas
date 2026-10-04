@@ -14,6 +14,7 @@ Reglas implementadas:
 - Django Admin queda reservado para la administración técnica de la plataforma; las cuentas operativas demo no tienen acceso de staff.
 - Cada peluquería tiene un enlace público para iniciar una reserva.
 - El invitado informa nombre, apellido, correo y contacto, y verifica un código de seis dígitos antes de reservar.
+- La sesión verificada permite consultar **Mis reservas** durante 24 horas. El listado se limita al correo verificado y a la peluquería actual, con acceso al detalle y a la cancelación permitida.
 - La reserva permite seleccionar sucursal, servicio, profesional, fecha, hora y notas opcionales.
 - La disponibilidad se calcula con la duración por sucursal, jornadas, descansos, ausencias y reservas existentes; no ofrece turnos que atraviesen un descanso o el cierre.
 - Owner y admin gestionan jornadas, descansos y ausencias desde el panel operativo, limitados a sus sucursales autorizadas.
