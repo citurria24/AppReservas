@@ -2,6 +2,7 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -12,8 +13,10 @@ from salons.booking import available_slots
 from salons.models import (
     Branch,
     BranchService,
+    BookingLimitException,
     GuestVerification,
     HairSalon,
+    Membership,
     Professional,
     ProfessionalBranch,
     ProfessionalService,
@@ -52,6 +55,8 @@ class PublicBookingTests(TestCase):
             ends_at=time(18),
         )
         ScheduleBreak.objects.create(schedule=cls.schedule, starts_at=time(13), ends_at=time(14))
+        cls.owner = get_user_model().objects.create_user("booking-owner", "booking.owner@example.test", "test-pass-123")
+        Membership.objects.create(salon=cls.salon, user=cls.owner, role=Membership.Role.OWNER)
 
     def verify_guest(self):
         with patch("salons.views.secrets.randbelow", return_value=123456):
@@ -151,3 +156,66 @@ class PublicBookingTests(TestCase):
         Reservation.objects.bulk_create([Reservation(email="a@example.test", **base)])
         with self.assertRaises(IntegrityError), transaction.atomic():
             Reservation.objects.bulk_create([Reservation(email="b@example.test", **base)])
+
+    def create_five_active_reservations(self):
+        slots = available_slots(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            day=self.day,
+        )
+        selected = slots[::2][:6]
+        for slot in selected[:5]:
+            Reservation.objects.create(
+                salon=self.salon,
+                branch=self.branch,
+                service=self.service,
+                professional=self.professional,
+                first_name="Cliente",
+                last_name="Demo",
+                email="cliente@example.test",
+                contact="099 123 456",
+                starts_at=slot,
+                ends_at=slot + timedelta(minutes=30),
+                duration_minutes=30,
+            )
+        return selected[5]
+
+    def post_booking(self, selected):
+        return self.client.post(
+            reverse("booking-create", args=[self.salon.slug]),
+            {
+                "branch": self.branch.id,
+                "service": self.service.id,
+                "professional": self.professional.id,
+                "date": self.day.isoformat(),
+                "slot": selected.isoformat(),
+                "notes": "Reserva adicional",
+            },
+        )
+
+    def test_sixth_active_reservation_is_blocked_across_the_salon(self):
+        selected = self.create_five_active_reservations()
+        self.verify_guest()
+        response = self.post_booking(selected)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ya tenés cinco reservas activas")
+        self.assertEqual(Reservation.objects.filter(email="cliente@example.test").count(), 5)
+
+    def test_single_use_admin_exception_allows_sixth_reservation(self):
+        selected = self.create_five_active_reservations()
+        exception = BookingLimitException.objects.create(
+            salon=self.salon,
+            customer_email="cliente@example.test",
+            booking_date=self.day,
+            reason="Grupo familiar autorizado",
+            created_by=self.owner,
+        )
+        self.verify_guest()
+        response = self.post_booking(selected)
+        self.assertRedirects(response, reverse("booking-success", args=[self.salon.slug]))
+        exception.refresh_from_db()
+        self.assertIsNotNone(exception.used_at)
+        self.assertIsNotNone(exception.reservation_id)
+        self.assertEqual(Reservation.objects.filter(email="cliente@example.test").count(), 6)

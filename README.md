@@ -55,6 +55,8 @@ Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlac
 
 Owner y admin pueden configurar la anticipación mínima desde **Configurar políticas** dentro del detalle de la peluquería. Cada reserva conserva el valor vigente al ser creada. La confirmación muestra un enlace protegido por un token no predecible; el mismo enlace se envía por correo y permite cancelar hasta el plazo configurado. Si el plazo venció, se muestra el teléfono de la sucursal.
 
+Desde esa misma configuración se registran excepciones al límite de cinco reservas activas por cliente, fecha y peluquería. Cada excepción permite una reserva adicional, es de un solo uso y conserva correo, fecha, motivo, usuario autorizante y reserva asociada.
+
 ## Migraciones y datos
 
 - Crear migraciones tras cambiar modelos: `docker compose run --rm web python manage.py makemigrations`

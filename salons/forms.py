@@ -1,6 +1,6 @@
 from django import forms
 from django.utils import timezone
-from .models import Branch, HairSalon, Professional, Service
+from .models import BookingLimitException, Branch, HairSalon, Professional, Service
 
 
 class GuestStartForm(forms.Form):
@@ -49,4 +49,25 @@ class SalonPolicyForm(forms.ModelForm):
         value = self.cleaned_data["cancellation_notice_hours"]
         if value > 720:
             raise forms.ValidationError("La anticipación no puede superar 720 horas (30 días).")
+        return value
+
+
+class BookingLimitExceptionForm(forms.ModelForm):
+    class Meta:
+        model = BookingLimitException
+        fields = ["customer_email", "booking_date", "reason"]
+        labels = {
+            "customer_email": "Correo verificado del cliente",
+            "booking_date": "Fecha de las reservas",
+            "reason": "Motivo de la excepción",
+        }
+        widgets = {
+            "booking_date": forms.DateInput(attrs={"type": "date"}),
+            "reason": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_booking_date(self):
+        value = self.cleaned_data["booking_date"]
+        if value < timezone.localdate():
+            raise forms.ValidationError("La excepción debe corresponder a una fecha actual o futura.")
         return value

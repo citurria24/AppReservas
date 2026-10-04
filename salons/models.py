@@ -351,3 +351,36 @@ class Reservation(models.Model):
     @property
     def can_client_cancel(self):
         return self.status == self.Status.CONFIRMED and timezone.now() <= self.client_cancellation_deadline
+
+
+class BookingLimitException(models.Model):
+    salon = models.ForeignKey(HairSalon, on_delete=models.CASCADE, related_name="booking_limit_exceptions", verbose_name="peluquería")
+    customer_email = models.EmailField("correo del cliente")
+    booking_date = models.DateField("fecha de las reservas")
+    reason = models.CharField("motivo", max_length=300)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="granted_booking_exceptions", verbose_name="autorizada por")
+    reservation = models.OneToOneField(Reservation, on_delete=models.SET_NULL, related_name="limit_exception", null=True, blank=True, verbose_name="reserva que utilizó la excepción")
+    used_at = models.DateTimeField("utilizada", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["salon", "customer_email", "booking_date", "used_at"], name="booking_exception_lookup")]
+        verbose_name = "excepción al límite de reservas"
+        verbose_name_plural = "excepciones al límite de reservas"
+
+    def clean(self):
+        if self.salon_id and self.created_by_id:
+            is_authorized = Membership.objects.filter(
+                salon=self.salon,
+                user=self.created_by,
+                active=True,
+                role__in=[Membership.Role.OWNER, Membership.Role.ADMIN],
+            ).exists()
+            if not is_authorized:
+                raise ValidationError("La excepción debe ser autorizada por un owner o administrador activo.")
+
+    def save(self, *args, **kwargs):
+        self.customer_email = self.customer_email.lower()
+        self.full_clean()
+        return super().save(*args, **kwargs)

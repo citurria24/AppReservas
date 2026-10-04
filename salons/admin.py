@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     Branch,
     BranchService,
+    BookingLimitException,
     HairSalon,
     Membership,
     MembershipBranch,
@@ -43,4 +44,5 @@ admin.site.register(ScheduleBreak)
 admin.site.register(ProfessionalAbsence)
 admin.site.register(GuestVerification)
 admin.site.register(Reservation)
+admin.site.register(BookingLimitException)
 admin.site.site_header = "TuTurnoUy · Administración técnica"

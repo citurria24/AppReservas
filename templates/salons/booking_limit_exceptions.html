@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Excepciones · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Control de reservas</p>
+  <h1>Excepciones al límite</h1>
+  <p>Cada autorización permite una reserva adicional por encima de las cinco activas del cliente para esa fecha.</p>
+</section>
+<div class="settings-grid">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Registrar excepción</button>
+  </form>
+  <section>
+    <h2>Últimas autorizaciones</h2>
+    <div class="exception-list">
+      {% for exception in exceptions %}
+        <article class="panel exception-card">
+          <div><strong>{{ exception.customer_email }}</strong><span>{{ exception.booking_date|date:"d/m/Y" }}</span></div>
+          <p>{{ exception.reason }}</p>
+          <small>Autorizó {{ exception.created_by }} · {% if exception.used_at %}Utilizada{% else %}Disponible{% endif %}</small>
+        </article>
+      {% empty %}<div class="panel empty"><p>Todavía no hay excepciones registradas.</p></div>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+

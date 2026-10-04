@@ -20,8 +20,12 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
-from .forms import BookingForm, GuestStartForm, GuestVerifyForm, SalonPolicyForm
-from .models import Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, Service, WorkSchedule
+from .forms import BookingForm, BookingLimitExceptionForm, GuestStartForm, GuestVerifyForm, SalonPolicyForm
+from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, Service, WorkSchedule
+
+
+class BookingLimitReached(Exception):
+    pass
 
 
 @login_required
@@ -66,6 +70,27 @@ def salon_settings(request, slug):
         form.save()
         saved = True
     return render(request, "salons/settings.html", {"salon": salon, "form": form, "saved": saved})
+
+
+@login_required
+def booking_limit_exceptions(request, slug):
+    salon = get_accessible_salon_or_404(request.user, slug)
+    membership = active_memberships_for(request.user).get(salon=salon)
+    if membership.role not in {Membership.Role.OWNER, Membership.Role.ADMIN}:
+        raise PermissionDenied
+    form = BookingLimitExceptionForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        exception = form.save(commit=False)
+        exception.salon = salon
+        exception.created_by = request.user
+        exception.save()
+        return redirect("booking-limit-exceptions", slug=salon.slug)
+    exceptions = salon.booking_limit_exceptions.select_related("created_by", "reservation")[:25]
+    return render(
+        request,
+        "salons/booking_limit_exceptions.html",
+        {"salon": salon, "form": form, "exceptions": exceptions},
+    )
 
 
 @login_required
@@ -240,6 +265,27 @@ def booking_create(request, slug):
             offering = BranchService.objects.get(branch=branch, service=service, active=True)
             try:
                 with transaction.atomic():
+                    HairSalon.objects.select_for_update().get(pk=salon.pk)
+                    local_tz = ZoneInfo(settings.TIME_ZONE)
+                    day_start = timezone.make_aware(datetime.combine(day, time.min), local_tz)
+                    day_end = day_start + timedelta(days=1)
+                    active_count = Reservation.objects.filter(
+                        salon=salon,
+                        email__iexact=guest["email"],
+                        status=Reservation.Status.CONFIRMED,
+                        starts_at__gte=day_start,
+                        starts_at__lt=day_end,
+                    ).count()
+                    limit_exception = None
+                    if active_count >= 5:
+                        limit_exception = BookingLimitException.objects.select_for_update().filter(
+                            salon=salon,
+                            customer_email__iexact=guest["email"],
+                            booking_date=day,
+                            used_at__isnull=True,
+                        ).first()
+                        if not limit_exception:
+                            raise BookingLimitReached
                     reservation = Reservation.objects.create(
                         salon=salon,
                         branch=branch,
@@ -255,6 +301,12 @@ def booking_create(request, slug):
                         cancellation_notice_hours=salon.cancellation_notice_hours,
                         notes=form.cleaned_data["notes"],
                     )
+                    if limit_exception:
+                        limit_exception.reservation = reservation
+                        limit_exception.used_at = timezone.now()
+                        limit_exception.save(update_fields=["reservation", "used_at"])
+            except BookingLimitReached:
+                form.add_error(None, "Ya tenés cinco reservas activas para esa fecha en esta peluquería.")
             except (IntegrityError, ValidationError):
                 form.add_error("slot", "El horario acaba de ocuparse. Elegí otro.")
             else:

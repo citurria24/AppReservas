@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-from salons.models import Branch, HairSalon, Membership, MembershipBranch, Professional, Reservation, Service
+from salons.models import BookingLimitException, Branch, HairSalon, Membership, MembershipBranch, Professional, Reservation, Service
 
 
 class CancellationPolicyTests(TestCase):
@@ -86,3 +86,19 @@ class CancellationPolicyTests(TestCase):
         response = self.client.get(reverse("client-cancel", args=[other.slug, reservation.cancellation_token]))
         self.assertEqual(response.status_code, 404)
 
+    def test_owner_can_register_audited_booking_limit_exception(self):
+        self.client.force_login(self.owner)
+        booking_date = timezone.localdate() + timedelta(days=2)
+        response = self.client.post(
+            reverse("booking-limit-exceptions", args=[self.salon.slug]),
+            {
+                "customer_email": "SPECIAL@EXAMPLE.TEST",
+                "booking_date": booking_date.isoformat(),
+                "reason": "Autorización excepcional documentada",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exception = BookingLimitException.objects.get()
+        self.assertEqual(exception.customer_email, "special@example.test")
+        self.assertEqual(exception.created_by, self.owner)
+        self.assertEqual(exception.reason, "Autorización excepcional documentada")
