@@ -732,7 +732,11 @@ def booking_success(request, slug):
     if not guest or not reservation_id:
         return redirect("public-salon", slug=salon.slug)
     reservation = get_object_or_404(Reservation, id=reservation_id, salon=salon, email=guest["email"])
-    return render(request, "booking/success.html", {"salon": salon, "reservation": reservation})
+    return render(
+        request,
+        "booking/success.html",
+        {"salon": salon, "guest": guest, "reservation": reservation},
+    )
 
 
 def client_cancel(request, slug, token):

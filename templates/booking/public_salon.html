@@ -10,10 +10,6 @@
   <div class="public-actions">
     {% if guest %}
       <a class="secondary" href="{% url 'my-reservations' salon.slug %}">Mis reservas</a>
-      <form method="post" action="{% url 'guest-logout' salon.slug %}">
-        {% csrf_token %}
-        <button class="link-button" type="submit">Salir / cambiar correo</button>
-      </form>
     {% endif %}
     <a class="primary public-cta" href="{% if guest %}{% url 'booking-create' salon.slug %}{% else %}{% url 'guest-start' salon.slug %}{% endif %}">Reservar un turno</a>
   </div>

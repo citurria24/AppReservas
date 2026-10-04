@@ -148,6 +148,10 @@ class PublicBookingTests(TestCase):
         self.verify_guest()
         response = self.client.get(reverse("public-salon", args=[self.salon.slug]))
         self.assertContains(response, "Salir / cambiar correo")
+        response = self.client.get(reverse("booking-create", args=[self.salon.slug]))
+        self.assertContains(response, "Salir / cambiar correo")
+        response = self.client.get(reverse("my-reservations", args=[self.salon.slug]))
+        self.assertContains(response, "Salir / cambiar correo")
 
         response = self.client.post(reverse("guest-logout", args=[self.salon.slug]))
 
