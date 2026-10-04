@@ -11,6 +11,8 @@ from .models import (
     ProfessionalService,
     ProfessionalAbsence,
     Reservation,
+    RewardProgram,
+    RewardRedemption,
     ScheduleBreak,
     Service,
     WorkSchedule,
@@ -45,4 +47,6 @@ admin.site.register(ProfessionalAbsence)
 admin.site.register(GuestVerification)
 admin.site.register(Reservation)
 admin.site.register(BookingLimitException)
+admin.site.register(RewardProgram)
+admin.site.register(RewardRedemption)
 admin.site.site_header = "TuTurnoUy · Administración técnica"

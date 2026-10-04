@@ -20,8 +20,9 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
-from .forms import BookingForm, BookingLimitExceptionForm, GuestStartForm, GuestVerifyForm, SalonPolicyForm
-from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, Service, WorkSchedule
+from .forms import BookingForm, BookingLimitExceptionForm, GuestStartForm, GuestVerifyForm, RewardProgramForm, SalonPolicyForm
+from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, RewardProgram, RewardRedemption, Service, WorkSchedule
+from .rewards import available_reward
 
 
 class BookingLimitReached(Exception):
@@ -54,6 +55,7 @@ def salon_detail(request, slug):
             "branches": branches,
             "membership": membership,
             "can_configure": membership.role in {Membership.Role.OWNER, Membership.Role.ADMIN},
+            "is_owner": membership.role == Membership.Role.OWNER,
         },
     )
 
@@ -69,7 +71,11 @@ def salon_settings(request, slug):
     if request.method == "POST" and form.is_valid():
         form.save()
         saved = True
-    return render(request, "salons/settings.html", {"salon": salon, "form": form, "saved": saved})
+    return render(
+        request,
+        "salons/settings.html",
+        {"salon": salon, "form": form, "saved": saved, "is_owner": membership.role == Membership.Role.OWNER},
+    )
 
 
 @login_required
@@ -90,6 +96,26 @@ def booking_limit_exceptions(request, slug):
         request,
         "salons/booking_limit_exceptions.html",
         {"salon": salon, "form": form, "exceptions": exceptions},
+    )
+
+
+@login_required
+def reward_settings(request, slug):
+    salon = get_accessible_salon_or_404(request.user, slug)
+    membership = active_memberships_for(request.user).get(salon=salon)
+    if membership.role != Membership.Role.OWNER:
+        raise PermissionDenied
+    program, _ = RewardProgram.objects.get_or_create(salon=salon)
+    form = RewardProgramForm(request.POST or None, instance=program)
+    saved = False
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        saved = True
+    recent_redemptions = salon.reward_redemptions.select_related("reservation")[:20]
+    return render(
+        request,
+        "salons/rewards.html",
+        {"salon": salon, "form": form, "saved": saved, "recent_redemptions": recent_redemptions},
     )
 
 
@@ -286,6 +312,7 @@ def booking_create(request, slug):
                         ).first()
                         if not limit_exception:
                             raise BookingLimitReached
+                    reward = available_reward(salon, guest["email"])
                     reservation = Reservation.objects.create(
                         salon=salon,
                         branch=branch,
@@ -299,12 +326,23 @@ def booking_create(request, slug):
                         ends_at=selected + timedelta(minutes=offering.duration_minutes),
                         duration_minutes=offering.duration_minutes,
                         cancellation_notice_hours=salon.cancellation_notice_hours,
+                        reward_discount_percent=reward["program"].discount_percent if reward else 0,
                         notes=form.cleaned_data["notes"],
                     )
                     if limit_exception:
                         limit_exception.reservation = reservation
                         limit_exception.used_at = timezone.now()
                         limit_exception.save(update_fields=["reservation", "used_at"])
+                    if reward:
+                        RewardRedemption.objects.create(
+                            salon=salon,
+                            customer_email=guest["email"],
+                            period_start=reward["period_start"],
+                            period_end=reward["period_end"],
+                            attended_services=reward["attended"],
+                            discount_percent=reward["program"].discount_percent,
+                            reservation=reservation,
+                        )
             except BookingLimitReached:
                 form.add_error(None, "Ya tenés cinco reservas activas para esa fecha en esta peluquería.")
             except (IntegrityError, ValidationError):
@@ -324,7 +362,11 @@ def booking_create(request, slug):
                     [reservation.email],
                 )
                 return redirect("booking-success", slug=salon.slug)
-    return render(request, "booking/booking_form.html", {"salon": salon, "guest": guest, "form": form})
+    return render(
+        request,
+        "booking/booking_form.html",
+        {"salon": salon, "guest": guest, "form": form, "reward": available_reward(salon, guest["email"])},
+    )
 
 
 def booking_slots(request, slug):

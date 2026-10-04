@@ -10,6 +10,7 @@
     <div><dt>Lugar</dt><dd>{{ reservation.branch.name }} · {{ reservation.branch.address }}</dd></div>
     <div><dt>Servicio</dt><dd>{{ reservation.service.name }} · {{ reservation.duration_minutes }} min</dd></div>
     <div><dt>Profesional</dt><dd>{{ reservation.professional.display_name }}</dd></div>
+    {% if reservation.reward_discount_percent %}<div><dt>Recompensa</dt><dd>{{ reservation.reward_discount_percent }}% de descuento aplicado</dd></div>{% endif %}
   </dl>
   <p class="muted">Podés cancelar hasta {{ reservation.client_cancellation_deadline|date:"d/m/Y H:i" }}.</p>
   <a class="secondary" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Consultar o cancelar reserva</a>

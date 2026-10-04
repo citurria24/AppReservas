@@ -308,6 +308,7 @@ class Reservation(models.Model):
     duration_minutes = models.PositiveSmallIntegerField("duración guardada")
     cancellation_notice_hours = models.PositiveSmallIntegerField("anticipación para cancelar", default=24)
     cancellation_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    reward_discount_percent = models.PositiveSmallIntegerField("descuento de recompensa", default=0)
     status = models.CharField("estado", max_length=24, choices=Status.choices, default=Status.CONFIRMED)
     notes = models.TextField("notas", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -383,4 +384,51 @@ class BookingLimitException(models.Model):
     def save(self, *args, **kwargs):
         self.customer_email = self.customer_email.lower()
         self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class RewardProgram(models.Model):
+    class Period(models.TextChoices):
+        MONTHLY = "monthly", "Mensual"
+        YEARLY = "yearly", "Anual"
+
+    salon = models.OneToOneField(HairSalon, on_delete=models.CASCADE, related_name="reward_program", verbose_name="peluquería")
+    active = models.BooleanField("activo", default=False)
+    services_required = models.PositiveSmallIntegerField("servicios atendidos requeridos", default=5)
+    period = models.CharField("período", max_length=12, choices=Period.choices, default=Period.MONTHLY)
+    discount_percent = models.PositiveSmallIntegerField("porcentaje de descuento", default=10)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(services_required__gte=1), name="reward_services_at_least_one"),
+            models.CheckConstraint(condition=Q(discount_percent__gte=1, discount_percent__lte=100), name="reward_discount_valid_percent"),
+        ]
+        verbose_name = "programa de recompensas"
+        verbose_name_plural = "programas de recompensas"
+
+    def __str__(self):
+        return f"{self.salon} · {self.services_required} servicios / {self.get_period_display()}"
+
+
+class RewardRedemption(models.Model):
+    salon = models.ForeignKey(HairSalon, on_delete=models.CASCADE, related_name="reward_redemptions", verbose_name="peluquería")
+    customer_email = models.EmailField("correo del cliente")
+    period_start = models.DateField("inicio del período")
+    period_end = models.DateField("fin del período")
+    attended_services = models.PositiveSmallIntegerField("servicios atendidos")
+    discount_percent = models.PositiveSmallIntegerField("porcentaje canjeado")
+    reservation = models.OneToOneField(Reservation, on_delete=models.PROTECT, related_name="reward_redemption", verbose_name="reserva del canje")
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["salon", "customer_email", "period_start"], name="one_reward_redemption_per_period"),
+        ]
+        ordering = ["-redeemed_at"]
+        verbose_name = "canje de recompensa"
+        verbose_name_plural = "canjes de recompensas"
+
+    def save(self, *args, **kwargs):
+        self.customer_email = self.customer_email.lower()
         return super().save(*args, **kwargs)

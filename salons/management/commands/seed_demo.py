@@ -1,10 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from accounts.models import User
+from django.conf import settings
 from django.utils import timezone
 from salons.booking import available_slots
-from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, Reservation, ScheduleBreak, Service, WorkSchedule
+from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, Reservation, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
 
 
 class Command(BaseCommand):
@@ -109,5 +111,36 @@ class Command(BaseCommand):
                     duration_minutes=offering.duration_minutes,
                     notes="Reserva creada por seed_demo para probar la agenda.",
                 )
+
+        RewardProgram.objects.update_or_create(
+            salon=norte,
+            defaults={
+                "active": True,
+                "services_required": 2,
+                "period": RewardProgram.Period.MONTHLY,
+                "discount_percent": 15,
+            },
+        )
+        reward_email = "cliente.recompensa@example.test"
+        RewardRedemption.objects.filter(salon=norte, customer_email=reward_email).delete()
+        Reservation.objects.filter(salon=norte, email=reward_email).delete()
+        local_tz = ZoneInfo(settings.TIME_ZONE)
+        for hour in (7, 8):
+            starts_at = timezone.make_aware(datetime.combine(timezone.localdate(), time(hour, 0)), local_tz)
+            Reservation.objects.create(
+                salon=norte,
+                branch=centro,
+                service=corte_norte,
+                professional=diego,
+                first_name="Cliente",
+                last_name="Recompensa",
+                email=reward_email,
+                contact="099 555 555",
+                starts_at=starts_at,
+                ends_at=starts_at + timedelta(minutes=30),
+                duration_minutes=30,
+                status=Reservation.Status.COMPLETED,
+                notes="Servicio atendido para demostrar el programa de recompensas.",
+            )
 
         self.stdout.write(self.style.SUCCESS("Datos demo listos. Contraseña común: DemoTuTurno2026!"))

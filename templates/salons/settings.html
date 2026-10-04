@@ -19,7 +19,7 @@
     </div>
     <button class="primary" type="submit">Guardar política</button>
     <a class="secondary" href="{% url 'booking-limit-exceptions' salon.slug %}">Gestionar excepciones al límite diario</a>
+    {% if is_owner %}<a class="secondary" href="{% url 'reward-settings' salon.slug %}">Configurar recompensas</a>{% endif %}
   </form>
 </section>
 {% endblock %}
-

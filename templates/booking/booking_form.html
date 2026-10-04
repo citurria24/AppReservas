@@ -11,6 +11,7 @@
       hx-trigger="change from:select, change from:input[type='date']"
       hx-target="#slots" hx-include="#booking-form">
   {% csrf_token %}
+  {% if reward %}<div class="reward-banner"><strong>¡Tenés una recompensa!</strong><span>Se aplicará {{ reward.program.discount_percent }}% de descuento a esta reserva.</span></div>{% endif %}
   {{ form.non_field_errors }}
   <div class="booking-grid">
     <div class="field"><label for="{{ form.branch.id_for_label }}">{{ form.branch.label }}</label>{{ form.branch }}{{ form.branch.errors }}</div>
@@ -24,4 +25,3 @@
   <button class="primary" type="submit">Confirmar reserva</button>
 </form>
 {% endblock %}
-

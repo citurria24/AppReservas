@@ -21,6 +21,8 @@ from salons.models import (
     ProfessionalBranch,
     ProfessionalService,
     Reservation,
+    RewardProgram,
+    RewardRedemption,
     ScheduleBreak,
     Service,
     WorkSchedule,
@@ -219,3 +221,57 @@ class PublicBookingTests(TestCase):
         self.assertIsNotNone(exception.used_at)
         self.assertIsNotNone(exception.reservation_id)
         self.assertEqual(Reservation.objects.filter(email="cliente@example.test").count(), 6)
+
+    def test_reward_is_applied_once_to_next_eligible_booking(self):
+        RewardProgram.objects.create(
+            salon=self.salon,
+            active=True,
+            services_required=2,
+            period=RewardProgram.Period.MONTHLY,
+            discount_percent=15,
+        )
+        local_tz = ZoneInfo(settings.TIME_ZONE)
+        attended_day = timezone.localdate()
+        for hour in (6, 7):
+            starts = timezone.make_aware(datetime.combine(attended_day, time(hour)), local_tz)
+            Reservation.objects.create(
+                salon=self.salon,
+                branch=self.branch,
+                service=self.service,
+                professional=self.professional,
+                first_name="Cliente",
+                last_name="Demo",
+                email="cliente@example.test",
+                contact="099 123 456",
+                starts_at=starts,
+                ends_at=starts + timedelta(minutes=30),
+                duration_minutes=30,
+                status=Reservation.Status.COMPLETED,
+            )
+        self.verify_guest()
+        slots = available_slots(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            day=self.day,
+        )
+        response = self.post_booking(slots[0])
+        self.assertRedirects(response, reverse("booking-success", args=[self.salon.slug]))
+        rewarded = Reservation.objects.filter(status=Reservation.Status.CONFIRMED).latest("id")
+        self.assertEqual(rewarded.reward_discount_percent, 15)
+        redemption = RewardRedemption.objects.get()
+        self.assertEqual(redemption.reservation, rewarded)
+
+        remaining_slots = available_slots(
+            salon=self.salon,
+            branch=self.branch,
+            service=self.service,
+            professional=self.professional,
+            day=self.day,
+        )
+        response = self.post_booking(remaining_slots[0])
+        self.assertRedirects(response, reverse("booking-success", args=[self.salon.slug]))
+        second = Reservation.objects.filter(status=Reservation.Status.CONFIRMED).latest("id")
+        self.assertEqual(second.reward_discount_percent, 0)
+        self.assertEqual(RewardRedemption.objects.count(), 1)

@@ -57,6 +57,12 @@ Owner y admin pueden configurar la anticipación mínima desde **Configurar pol�
 
 Desde esa misma configuración se registran excepciones al límite de cinco reservas activas por cliente, fecha y peluquería. Cada excepción permite una reserva adicional, es de un solo uso y conserva correo, fecha, motivo, usuario autorizante y reserva asociada.
 
+## Recompensas
+
+El owner puede activar un programa desde **Configurar recompensas**, elegir meta de servicios atendidos, período mensual o anual y porcentaje de descuento. Al alcanzar la meta, el beneficio se aplica automáticamente a la siguiente reserva del mismo correo verificado. El canje queda asociado a esa reserva y no puede repetirse dentro del mismo período.
+
+Los datos demo activan en Estilo Norte una recompensa de 15% después de dos servicios mensuales. Para probarla, iniciá el flujo de invitado con `cliente.recompensa@example.test`; los dos servicios atendidos necesarios ya están cargados.
+
 ## Migraciones y datos
 
 - Crear migraciones tras cambiar modelos: `docker compose run --rm web python manage.py makemigrations`

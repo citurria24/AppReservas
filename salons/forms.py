@@ -1,6 +1,6 @@
 from django import forms
 from django.utils import timezone
-from .models import BookingLimitException, Branch, HairSalon, Professional, Service
+from .models import BookingLimitException, Branch, HairSalon, Professional, RewardProgram, Service
 
 
 class GuestStartForm(forms.Form):
@@ -71,3 +71,19 @@ class BookingLimitExceptionForm(forms.ModelForm):
         if value < timezone.localdate():
             raise forms.ValidationError("La excepción debe corresponder a una fecha actual o futura.")
         return value
+
+
+class RewardProgramForm(forms.ModelForm):
+    class Meta:
+        model = RewardProgram
+        fields = ["active", "services_required", "period", "discount_percent"]
+        labels = {
+            "active": "Activar programa de recompensas",
+            "services_required": "Cantidad de servicios atendidos",
+            "period": "Período de conteo",
+            "discount_percent": "Porcentaje de descuento",
+        }
+        widgets = {
+            "services_required": forms.NumberInput(attrs={"min": 1}),
+            "discount_percent": forms.NumberInput(attrs={"min": 1, "max": 100}),
+        }

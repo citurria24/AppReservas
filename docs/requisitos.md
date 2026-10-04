@@ -20,13 +20,13 @@ Reglas implementadas:
 - Owner y admin configuran la anticipación mínima para cancelar; el valor vigente queda conservado en cada nueva reserva. El invitado recibe un enlace con token no predecible y puede cancelar hasta ese límite.
 - La agenda interna filtra por fecha y sucursal respetando el alcance de owner, admin y peluquero. Permite cancelar desde el local o marcar una reserva como atendida según el rol.
 - Un cliente puede tener hasta cinco reservas activas para una misma fecha dentro de una peluquería, sumando sucursales. Owner y admin pueden registrar excepciones de un solo uso con correo, fecha, motivo, autor y reserva que la consumió.
+- El owner puede activar recompensas mensuales o anuales, definir servicios atendidos requeridos y porcentaje de descuento. El beneficio se aplica a la siguiente reserva elegible, queda registrado en ella y solo puede canjearse una vez por período.
 
 ## Alcance posterior registrado, no implementado
 
 - Acceso con Google. El acceso como invitado con correo verificado ya está implementado; falta conectar un proveedor real de correo fuera del modo de desarrollo.
 - Después de tres cancelaciones computables, bloqueo para nuevas reservas durante 24 horas, mostrando el vencimiento y el teléfono del local. Las cancelaciones realizadas por el local no cuentan.
 - El período dentro del cual se contarán esas tres cancelaciones está pendiente de confirmación. **No se considera un requisito aprobado y no debe asumirse todavía.**
-- Recompensas opcionales configuradas por el owner: cantidad de servicios atendidos, período mensual o anual y porcentaje de descuento, con canje único.
 
 ## Decisiones pendientes para la siguiente etapa
 

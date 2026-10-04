@@ -6,6 +6,7 @@ urlpatterns = [
     path("peluquerias/<slug:slug>/", views.salon_detail, name="salon-detail"),
     path("peluquerias/<slug:slug>/configuracion/", views.salon_settings, name="salon-settings"),
     path("peluquerias/<slug:slug>/excepciones/", views.booking_limit_exceptions, name="booking-limit-exceptions"),
+    path("peluquerias/<slug:slug>/recompensas/", views.reward_settings, name="reward-settings"),
     path("agenda/", views.agenda, name="agenda"),
     path("agenda/reservas/<int:pk>/estado/", views.reservation_status, name="reservation-status"),
     path("reservar/<slug:slug>/", views.public_salon, name="public-salon"),

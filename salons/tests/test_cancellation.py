@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-from salons.models import BookingLimitException, Branch, HairSalon, Membership, MembershipBranch, Professional, Reservation, Service
+from salons.models import BookingLimitException, Branch, HairSalon, Membership, MembershipBranch, Professional, Reservation, RewardProgram, Service
 
 
 class CancellationPolicyTests(TestCase):
@@ -102,3 +102,16 @@ class CancellationPolicyTests(TestCase):
         self.assertEqual(exception.customer_email, "special@example.test")
         self.assertEqual(exception.created_by, self.owner)
         self.assertEqual(exception.reason, "Autorización excepcional documentada")
+
+    def test_only_owner_can_configure_rewards(self):
+        url = reverse("reward-settings", args=[self.salon.slug])
+        payload = {"active": "on", "services_required": 4, "period": "monthly", "discount_percent": 20}
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.post(url, payload).status_code, 403)
+        self.client.force_login(self.owner)
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, 200)
+        program = RewardProgram.objects.get(salon=self.salon)
+        self.assertTrue(program.active)
+        self.assertEqual(program.services_required, 4)
+        self.assertEqual(program.discount_percent, 20)
