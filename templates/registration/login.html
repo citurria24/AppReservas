@@ -17,7 +17,7 @@
     {{ form.password }}
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
     <button class="primary" type="submit">Entrar al panel</button>
+    <p><a href="{% url 'password_reset' %}">Olvidé mi contraseña</a></p>
   </form>
 </section>
 {% endblock %}
-

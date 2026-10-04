@@ -59,6 +59,12 @@ Owner y admin pueden entrar en **Configurar políticas → Gestionar jornadas y 
 
 El owner puede administrar desde **Configurar políticas** las sucursales, los servicios y los profesionales sin ingresar a Django Admin. Puede activar o desactivar registros conservando su historial, definir la duración de cada servicio por sucursal y asignar profesionales a sus sucursales y servicios. Estas pantallas validan el aislamiento por peluquería; la vinculación de un profesional continúa siendo independiente del rol operativo de un usuario.
 
+## Gestión del equipo
+
+El owner puede entrar en **Configurar políticas → Gestionar equipo y accesos** para crear usuarios con contraseña inicial, asignarles el rol de administrador o peluquero, autorizar sucursales y vincular opcionalmente un profesional de la misma peluquería. También puede cambiar esos permisos o revocar una membresía; la revocación se aplica en la siguiente petición aunque el usuario mantenga una sesión iniciada.
+
+El owner está protegido: no aparece como membresía editable, no puede desactivarse y no es posible asignar ese rol desde los formularios. La transferencia de ownership no forma parte de este bloque.
+
 ## Cancelaciones
 
 Owner y admin pueden configurar la anticipación mínima desde **Configurar políticas** dentro del detalle de la peluquería. Cada reserva conserva el valor vigente al ser creada. La confirmación muestra un enlace protegido por un token no predecible; el mismo enlace se envía por correo y permite cancelar hasta el plazo configurado. Si el plazo venció, se muestra el teléfono de la sucursal.
@@ -81,7 +87,7 @@ Los datos demo activan en Estilo Norte una recompensa de 15% después de dos ser
 
 Ejecutar las pruebas reales sobre PostgreSQL: `docker compose run --rm web python manage.py test`
 
-Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, administración segura del catálogo, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
+Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, administración segura del catálogo y del equipo, protección del owner, revocación con sesión activa, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
 
 ## Arquitectura
 

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Equipo · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Usuarios y permisos</p>
+  <h1>Equipo</h1>
+  <p>Creá accesos para administradores y peluqueros. El owner está protegido y no puede modificarse ni desactivarse desde esta pantalla.</p>
+</section>
+
+<div class="management-layout">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}
+    <h2>Nuevo integrante</h2>
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="field{% if field.field.widget.input_type == 'checkbox' %} checkbox-field choice-list{% endif %}">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <button class="primary" type="submit">Crear usuario y acceso</button>
+  </form>
+
+  <section>
+    <h2>Integrantes</h2>
+    <div class="exception-list">
+      {% for row in rows %}
+        <article class="panel management-card professional-card">
+          <div>
+            <div>
+              <strong>{{ row.membership.user.get_full_name|default:row.membership.user.username }}</strong>
+              <p>{{ row.membership.user.email }} · {{ row.membership.get_role_display }}</p>
+            </div>
+            <span class="booking-status {% if row.membership.active %}status-confirmed{% else %}status-cancelled_salon{% endif %}">{% if row.membership.active %}Activo{% else %}Revocado{% endif %}</span>
+          </div>
+          <h3>Sucursales</h3>
+          <div class="chips">
+            {% if row.membership.role == 'owner' %}<span>Todas las sucursales</span>{% else %}{% for branch in row.membership.branches.all %}<span>{{ branch.name }}</span>{% empty %}<span class="muted">Sin sucursales</span>{% endfor %}{% endif %}
+          </div>
+          {% if row.professional %}<p class="muted">Profesional vinculado: {{ row.professional.display_name }}</p>{% endif %}
+          {% if row.can_edit %}<a class="secondary" href="{% url 'team-membership-edit' salon.slug row.membership.id %}">Editar permisos</a>{% else %}<p class="muted">Ownership protegido. La transferencia no está disponible.</p>{% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

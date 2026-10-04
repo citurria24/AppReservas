@@ -1,0 +1,12 @@
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:8013:8000"
+
+  mailpit:
+    ports: !override
+      - "127.0.0.1:8027:8025"
+
+volumes:
+  postgres_data:
+    name: tuturnouy_integration_postgres_data
