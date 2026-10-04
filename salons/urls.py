@@ -1,10 +1,11 @@
-from django.urls import path
+from django.urls import include, path
 from . import views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("peluquerias/<slug:slug>/", views.salon_detail, name="salon-detail"),
     path("peluquerias/<slug:slug>/configuracion/", views.salon_settings, name="salon-settings"),
+    path("peluquerias/<slug:slug>/equipo/", include("salons.team_urls")),
     path("peluquerias/<slug:slug>/sucursales/", views.branch_management, name="branch-management"),
     path("peluquerias/<slug:slug>/sucursales/<int:pk>/editar/", views.branch_management, name="branch-edit"),
     path("peluquerias/<slug:slug>/servicios/", views.service_management, name="service-management"),
