@@ -23,6 +23,7 @@ urlpatterns = [
     path("agenda/reservas/<int:pk>/reprogramar/horarios/", views.reservation_reschedule_slots, name="reservation-reschedule-slots"),
     path("reservar/<slug:slug>/", views.public_salon, name="public-salon"),
     path("reservar/<slug:slug>/invitado/", views.guest_start, name="guest-start"),
+    path("reservar/<slug:slug>/salir/", views.guest_logout, name="guest-logout"),
     path("reservar/<slug:slug>/verificar/", views.guest_verify, name="guest-verify"),
     path("reservar/<slug:slug>/turno/", views.booking_create, name="booking-create"),
     path("reservar/<slug:slug>/mis-reservas/", views.my_reservations, name="my-reservations"),

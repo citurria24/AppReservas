@@ -144,6 +144,28 @@ class PublicBookingTests(TestCase):
         response = self.client.get(reverse("my-reservations", args=[self.other_salon.slug]))
         self.assertRedirects(response, reverse("guest-start", args=[self.other_salon.slug]))
 
+    def test_verified_guest_can_log_out_and_change_email(self):
+        self.verify_guest()
+        response = self.client.get(reverse("public-salon", args=[self.salon.slug]))
+        self.assertContains(response, "Salir / cambiar correo")
+
+        response = self.client.post(reverse("guest-logout", args=[self.salon.slug]))
+
+        self.assertRedirects(response, reverse("public-salon", args=[self.salon.slug]))
+        self.assertNotIn("verified_guest", self.client.session)
+        response = self.client.get(reverse("booking-create", args=[self.salon.slug]))
+        self.assertRedirects(response, reverse("guest-start", args=[self.salon.slug]))
+
+    def test_guest_logout_is_post_only_and_does_not_clear_another_salon_session(self):
+        self.verify_guest()
+        response = self.client.get(reverse("guest-logout", args=[self.salon.slug]))
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.post(reverse("guest-logout", args=[self.other_salon.slug]))
+
+        self.assertRedirects(response, reverse("public-salon", args=[self.other_salon.slug]))
+        self.assertIn("verified_guest", self.client.session)
+
     def test_guest_email_verification_and_booking_flow(self):
         self.verify_guest()
         slots = available_slots(

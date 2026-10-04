@@ -558,6 +558,21 @@ def _verified_guest(request, salon):
     return guest
 
 
+def guest_logout(request, slug):
+    if request.method != "POST":
+        raise Http404
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    verified_guest = request.session.get("verified_guest")
+    if verified_guest and verified_guest.get("salon_id") == salon.id:
+        request.session.pop("verified_guest", None)
+        request.session.pop("last_reservation_id", None)
+    pending_guest = request.session.get("pending_guest")
+    if pending_guest and pending_guest.get("salon_id") == salon.id:
+        request.session.pop("pending_guest", None)
+        request.session.pop("debug_verification_code", None)
+    return redirect("public-salon", slug=salon.slug)
+
+
 def my_reservations(request, slug):
     salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
     guest = _verified_guest(request, salon)
