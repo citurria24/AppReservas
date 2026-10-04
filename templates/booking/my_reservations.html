@@ -17,7 +17,7 @@
         </div>
         <p><strong>{{ reservation.service.name }}</strong> con {{ reservation.professional.display_name }}</p>
         {% if reservation.reward_discount_percent %}<p class="reward-inline">Recompensa aplicada: {{ reservation.reward_discount_percent }}%</p>{% endif %}
-        <a class="secondary action" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Ver detalle{% if reservation.can_client_cancel %} o cancelar{% endif %}</a>
+        <a class="secondary action" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Ver detalle{% if reservation.can_client_cancel %} o gestionar{% endif %}</a>
       </article>
     {% endfor %}
   </div>

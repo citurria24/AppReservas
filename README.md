@@ -71,6 +71,12 @@ Owner y admin pueden configurar la anticipación mínima desde **Configurar pol�
 
 Desde esa misma configuración se registran excepciones al límite de cinco reservas activas por cliente, fecha y peluquería. Cada excepción permite una reserva adicional, es de un solo uso y conserva correo, fecha, motivo, usuario autorizante y reserva asociada.
 
+## Reprogramación
+
+El cliente puede reprogramar una reserva confirmada desde su enlace protegido mientras siga dentro del mismo plazo permitido para cancelar. Owner y admin pueden reprogramar desde la agenda, respetando las sucursales que administran; el peluquero no puede hacerlo.
+
+La reprogramación mantiene sucursal, servicio, profesional, duración, recompensa y política de cancelación. Solo cambia la fecha y hora, vuelve a calcular la disponibilidad y conserva un historial con horario anterior, horario nuevo, origen y usuario responsable cuando el cambio se realiza desde el local. También respeta el límite de cinco reservas activas del cliente para la fecha de destino. Si el correo de confirmación falla, tanto el cambio como su historial se revierten.
+
 ## Recompensas
 
 El owner puede activar un programa desde **Configurar recompensas**, elegir meta de servicios atendidos, período mensual o anual y porcentaje de descuento. Al alcanzar la meta, el beneficio se aplica automáticamente a la siguiente reserva del mismo correo verificado. El canje queda asociado a esa reserva y no puede repetirse dentro del mismo período.
@@ -87,7 +93,7 @@ Los datos demo activan en Estilo Norte una recompensa de 15% después de dos ser
 
 Ejecutar las pruebas reales sobre PostgreSQL: `docker compose run --rm web python manage.py test`
 
-Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, administración segura del catálogo y del equipo, protección del owner, revocación con sesión activa, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
+Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, administración segura del catálogo y del equipo, protección del owner, revocación con sesión activa, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación y reprogramación transaccional de reservas, historial de cambios, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
 
 ## Arquitectura
 

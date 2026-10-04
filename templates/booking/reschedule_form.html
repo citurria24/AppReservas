@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Reprogramar reserva · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  {% if back_url %}<a class="back" href="{{ back_url }}">← Volver a la reserva</a>{% endif %}
+  <p class="eyebrow">{% if staff_mode %}Gestión del local{% else %}Gestionar reserva{% endif %}</p>
+  <h1>Reprogramar turno</h1>
+  <p>{{ reservation.service.name }} con {{ reservation.professional.display_name }} en {{ reservation.branch.name }}.</p>
+</section>
+
+{% if unavailable %}
+  <div class="panel empty">
+    <h2>Esta reserva ya no se puede reprogramar</h2>
+    <p>Puede estar cancelada, atendida o fuera del plazo permitido.</p>
+    <p>Comunicate con {{ salon.name }} al {{ reservation.branch.phone|default:"teléfono del local" }}.</p>
+    <a class="secondary" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Volver al detalle</a>
+  </div>
+{% else %}
+  <form id="reschedule-form" method="post" class="panel booking-form wide"
+        hx-get="{{ slots_url }}" hx-trigger="change from:input[type='date']"
+        hx-target="#slots" hx-include="#reschedule-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <dl class="summary compact-summary">
+      <div><dt>Horario actual</dt><dd>{{ reservation.starts_at|date:"d/m/Y H:i" }}</dd></div>
+      <div><dt>Sucursal</dt><dd>{{ reservation.branch.name }} · {{ reservation.branch.address }}</dd></div>
+    </dl>
+    <div class="field"><label for="{{ form.date.id_for_label }}">{{ form.date.label }}</label>{{ form.date }}{{ form.date.errors }}</div>
+    {{ form.slot.errors }}
+    <fieldset class="slots-fieldset">
+      <legend>Nuevo horario</legend>
+      <div id="slots">{% include "booking/_slots.html" with slots=slots %}</div>
+    </fieldset>
+    <button class="primary" type="submit">Confirmar nuevo horario</button>
+  </form>
+{% endif %}
+{% endblock %}

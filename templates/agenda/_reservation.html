@@ -11,8 +11,9 @@
     <p><strong>{{ reservation.service.name }}</strong> con {{ reservation.professional.display_name }} · {{ reservation.duration_minutes }} min</p>
     <p class="reservation-contact">{{ reservation.contact }} · {{ reservation.email }}</p>
     {% if reservation.notes %}<p class="reservation-notes">“{{ reservation.notes }}”</p>{% endif %}
-    {% if can_cancel or can_complete %}
+    {% if can_cancel or can_complete or can_reschedule %}
       <div class="reservation-actions">
+        {% if can_reschedule %}<a class="secondary" href="{% url 'reservation-reschedule' reservation.id %}">Reprogramar</a>{% endif %}
         {% if can_complete %}
           <form method="post" action="{% url 'reservation-status' reservation.id %}" hx-post="{% url 'reservation-status' reservation.id %}" hx-target="closest article" hx-swap="outerHTML">
             {% csrf_token %}<input type="hidden" name="action" value="complete"><button class="secondary" type="submit">Marcar atendida</button>
@@ -27,4 +28,3 @@
     {% endif %}
   </div>
 </article>
-

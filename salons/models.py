@@ -353,6 +353,65 @@ class Reservation(models.Model):
     def can_client_cancel(self):
         return self.status == self.Status.CONFIRMED and timezone.now() <= self.client_cancellation_deadline
 
+    @property
+    def can_client_reschedule(self):
+        return self.can_client_cancel
+
+
+class ReservationReschedule(models.Model):
+    class Source(models.TextChoices):
+        CLIENT = "client", "Cliente"
+        SALON = "salon", "Peluquería"
+
+    reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.CASCADE,
+        related_name="reschedules",
+        verbose_name="reserva",
+    )
+    previous_starts_at = models.DateTimeField("inicio anterior")
+    previous_ends_at = models.DateTimeField("fin anterior")
+    new_starts_at = models.DateTimeField("inicio nuevo")
+    new_ends_at = models.DateTimeField("fin nuevo")
+    source = models.CharField("origen", max_length=12, choices=Source.choices)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="reservation_reschedules",
+        null=True,
+        blank=True,
+        verbose_name="modificada por",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(previous_ends_at__gt=models.F("previous_starts_at")),
+                name="reschedule_previous_end_after_start",
+            ),
+            models.CheckConstraint(
+                condition=Q(new_ends_at__gt=models.F("new_starts_at")),
+                name="reschedule_new_end_after_start",
+            ),
+        ]
+        verbose_name = "reprogramación"
+        verbose_name_plural = "reprogramaciones"
+
+    def clean(self):
+        if self.source == self.Source.CLIENT and self.changed_by_id:
+            raise ValidationError("Una reprogramación del cliente no puede tener un usuario interno.")
+        if self.source == self.Source.SALON and not self.changed_by_id:
+            raise ValidationError("Una reprogramación de la peluquería debe registrar el usuario responsable.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.reservation} · {self.previous_starts_at:%d/%m/%Y %H:%M} → {self.new_starts_at:%d/%m/%Y %H:%M}"
+
 
 class BookingLimitException(models.Model):
     salon = models.ForeignKey(HairSalon, on_delete=models.CASCADE, related_name="booking_limit_exceptions", verbose_name="peluquería")
