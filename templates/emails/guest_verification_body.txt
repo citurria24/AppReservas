@@ -1,0 +1,4 @@
+Tu código de verificación para {{ salon.name }} es: {{ code }}
+
+Vence en {{ expires_minutes }} minutos y solo puede utilizarse una vez.
+Si no solicitaste este código, podés ignorar el mensaje.
