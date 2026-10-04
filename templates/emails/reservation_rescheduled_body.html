@@ -1,0 +1,9 @@
+<p>Hola {{ reservation.first_name }},</p>
+<p>Tu reserva en <strong>{{ salon.name }}</strong> fue reprogramada.</p>
+<ul>
+  <li>Horario anterior: {{ previous_local_start|date:"d/m/Y H:i" }}</li>
+  <li>Horario nuevo: <strong>{{ new_local_start|date:"d/m/Y H:i" }}</strong></li>
+  <li>Servicio: {{ reservation.service.name }} con {{ reservation.professional.display_name }}</li>
+  <li>Sucursal: {{ reservation.branch.name }}</li>
+</ul>
+<p><a href="{{ management_url }}">Consultar o gestionar la reserva</a></p>

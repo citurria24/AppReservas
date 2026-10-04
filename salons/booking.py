@@ -8,7 +8,7 @@ from .models import BranchService, ProfessionalAbsence, Reservation, WorkSchedul
 SLOT_STEP_MINUTES = 15
 
 
-def available_slots(*, salon, branch, service, professional, day):
+def available_slots(*, salon, branch, service, professional, day, exclude_reservation_id=None):
     if branch.salon_id != salon.id or service.salon_id != salon.id or professional.salon_id != salon.id:
         return []
     if not professional.branches.filter(id=branch.id, active=True).exists():
@@ -46,12 +46,15 @@ def available_slots(*, salon, branch, service, professional, day):
                 starts_at__lt=candidate_end,
                 ends_at__gt=candidate,
             ).exists()
-            has_reservation = Reservation.objects.filter(
+            reservations = Reservation.objects.filter(
                 professional=professional,
                 status=Reservation.Status.CONFIRMED,
                 starts_at__lt=candidate_end,
                 ends_at__gt=candidate,
-            ).exists()
+            )
+            if exclude_reservation_id:
+                reservations = reservations.exclude(pk=exclude_reservation_id)
+            has_reservation = reservations.exists()
             if candidate > timezone.now() and not crosses_break and not has_absence and not has_reservation:
                 slots.append(candidate)
             candidate += timedelta(minutes=SLOT_STEP_MINUTES)

@@ -2,7 +2,11 @@
 {% block title %}Gestionar reserva · {{ salon.name }}{% endblock %}
 {% block content %}
 <section class="success-card panel">
-  {% if cancelled_now %}
+  {% if rescheduled_now %}
+    <div class="success-mark">✓</div>
+    <p class="eyebrow">Reserva reprogramada</p>
+    <h1>Tu nuevo horario quedó confirmado.</h1>
+  {% elif cancelled_now %}
     <div class="success-mark">✓</div>
     <p class="eyebrow">Cancelación registrada</p>
     <h1>Tu reserva fue cancelada.</h1>
@@ -24,6 +28,7 @@
     <div><dt>Plazo</dt><dd>{{ reservation.client_cancellation_deadline|date:"d/m/Y H:i" }}</dd></div>
   </dl>
   {% if reservation.can_client_cancel %}
+    <a class="secondary action" href="{% url 'client-reschedule' salon.slug reservation.cancellation_token %}">Reprogramar reserva</a>
     <form method="post">{% csrf_token %}<button class="danger-button" type="submit">Sí, cancelar mi reserva</button></form>
   {% endif %}
   <a class="secondary action" href="{% url 'public-salon' salon.slug %}">Volver al local</a>

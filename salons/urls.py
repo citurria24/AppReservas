@@ -19,6 +19,8 @@ urlpatterns = [
     path("peluquerias/<slug:slug>/disponibilidad/<str:kind>/<int:pk>/eliminar/", views.availability_delete, name="availability-delete"),
     path("agenda/", views.agenda, name="agenda"),
     path("agenda/reservas/<int:pk>/estado/", views.reservation_status, name="reservation-status"),
+    path("agenda/reservas/<int:pk>/reprogramar/", views.reservation_reschedule, name="reservation-reschedule"),
+    path("agenda/reservas/<int:pk>/reprogramar/horarios/", views.reservation_reschedule_slots, name="reservation-reschedule-slots"),
     path("reservar/<slug:slug>/", views.public_salon, name="public-salon"),
     path("reservar/<slug:slug>/invitado/", views.guest_start, name="guest-start"),
     path("reservar/<slug:slug>/verificar/", views.guest_verify, name="guest-verify"),
@@ -27,4 +29,6 @@ urlpatterns = [
     path("reservar/<slug:slug>/horarios/", views.booking_slots, name="booking-slots"),
     path("reservar/<slug:slug>/confirmada/", views.booking_success, name="booking-success"),
     path("reservar/<slug:slug>/cancelar/<uuid:token>/", views.client_cancel, name="client-cancel"),
+    path("reservar/<slug:slug>/reprogramar/<uuid:token>/", views.client_reschedule, name="client-reschedule"),
+    path("reservar/<slug:slug>/reprogramar/<uuid:token>/horarios/", views.client_reschedule_slots, name="client-reschedule-slots"),
 ]

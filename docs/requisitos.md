@@ -22,6 +22,7 @@ Reglas implementadas:
 - Las reservas se crean dentro de una transacción y PostgreSQL impide solapamientos para un mismo profesional mediante una restricción de exclusión.
 - Owner y admin configuran la anticipación mínima para cancelar; el valor vigente queda conservado en cada nueva reserva. El invitado recibe un enlace con token no predecible y puede cancelar hasta ese límite.
 - La agenda interna filtra por fecha y sucursal respetando el alcance de owner, admin y peluquero. Permite cancelar desde el local o marcar una reserva como atendida según el rol.
+- Una reserva confirmada puede reprogramarse sin cambiar sucursal, servicio ni profesional. El cliente puede hacerlo con su token dentro del plazo de cancelación; owner y admin pueden hacerlo desde la agenda según su alcance. Cada cambio conserva horario anterior, horario nuevo, origen y usuario responsable, y se revierte si falla el correo de confirmación.
 - Un cliente puede tener hasta cinco reservas activas para una misma fecha dentro de una peluquería, sumando sucursales. Owner y admin pueden registrar excepciones de un solo uso con correo, fecha, motivo, autor y reserva que la consumió.
 - El owner puede activar recompensas mensuales o anuales, definir servicios atendidos requeridos y porcentaje de descuento. El beneficio se aplica a la siguiente reserva elegible, queda registrado en ella y solo puede canjearse una vez por período.
 
@@ -35,6 +36,6 @@ Reglas implementadas:
 
 - Confirmar el período de conteo de las cancelaciones computables.
 - Definir proveedor y flujo de correo para verificación de invitados.
-- Precisar estados de una reserva y reglas de reprogramación.
+- Definir si se incorporarán estados adicionales, como ausencia del cliente o turno en curso.
 - Definir si las jornadas, pausas o ausencias necesitarán reglas de recurrencia adicionales a la configuración semanal actual.
 - Acordar trazabilidad y motivo obligatorio para las excepciones de administradores.

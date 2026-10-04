@@ -4,6 +4,7 @@
 
 - Los códigos de verificación de invitados se envían con versiones texto y HTML.
 - Las confirmaciones de reserva se envían con versiones texto y HTML e incluyen el enlace de consulta y cancelación.
+- Las reprogramaciones envían el horario anterior y el nuevo en versiones texto y HTML. Un fallo de entrega revierte el cambio y su historial.
 - El personal puede solicitar la recuperación de contraseña desde la pantalla de ingreso.
 - Los enlaces de recuperación usan los tokens nativos de Django: vencen según `PASSWORD_RESET_TIMEOUT` y dejan de ser válidos después de cambiar la contraseña.
 - La solicitud de recuperación devuelve la misma respuesta HTTP exista o no una cuenta activa. También intenta una entrega para correos desconocidos, con un mensaje neutro sin token, para que un fallo del transporte no permita distinguir cuentas por la respuesta web.
