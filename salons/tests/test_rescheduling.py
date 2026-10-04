@@ -27,7 +27,9 @@ from salons.rescheduling import slots_for_reservation
 
 
 def next_weekday(weekday):
-    candidate = timezone.localdate() + timedelta(days=1)
+    # Client rescheduling requires 24 hours of notice. Starting two calendar
+    # days ahead keeps these tests valid regardless of the current time.
+    candidate = timezone.localdate() + timedelta(days=2)
     while candidate.weekday() != weekday:
         candidate += timedelta(days=1)
     return candidate
