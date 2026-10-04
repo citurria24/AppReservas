@@ -310,11 +310,18 @@ class Reservation(models.Model):
     cancellation_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     reward_discount_percent = models.PositiveSmallIntegerField("descuento de recompensa", default=0)
     status = models.CharField("estado", max_length=24, choices=Status.choices, default=Status.CONFIRMED)
+    cancelled_at = models.DateTimeField("cancelada", null=True, blank=True)
     notes = models.TextField("notas", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["starts_at"]
+        indexes = [
+            models.Index(
+                fields=["salon", "status", "cancelled_at"],
+                name="reservation_cancel_policy_idx",
+            ),
+        ]
         constraints = [
             models.CheckConstraint(condition=Q(ends_at__gt=models.F("starts_at")), name="reservation_end_after_start"),
             ExclusionConstraint(

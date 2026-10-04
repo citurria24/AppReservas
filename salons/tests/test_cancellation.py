@@ -68,6 +68,7 @@ class CancellationPolicyTests(TestCase):
         self.assertEqual(response.status_code, 200)
         reservation.refresh_from_db()
         self.assertEqual(reservation.status, Reservation.Status.CANCELLED_CLIENT)
+        self.assertIsNotNone(reservation.cancelled_at)
         self.assertContains(response, "Tu reserva fue cancelada")
 
     def test_client_cannot_cancel_after_deadline_and_sees_phone(self):

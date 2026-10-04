@@ -19,6 +19,7 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
+from .cancellation_policy import active_cancellation_booking_block
 from accounts.email_delivery import EmailDeliveryError
 from .email_delivery import send_guest_verification_email, send_reservation_confirmation_email
 from .forms import (
@@ -44,6 +45,11 @@ from .rewards import available_reward
 
 class BookingLimitReached(Exception):
     pass
+
+
+class CancellationBookingBlockReached(Exception):
+    def __init__(self, block):
+        self.block = block
 
 
 @login_required
@@ -361,13 +367,17 @@ def reservation_status(request, pk):
         if not can_manage_reservation(request.user, reservation):
             raise PermissionDenied
         reservation.status = Reservation.Status.CANCELLED_SALON
+        reservation.cancelled_at = timezone.now()
     elif action == "complete":
         if not can_complete_reservation(request.user, reservation):
             raise PermissionDenied
         reservation.status = Reservation.Status.COMPLETED
     else:
         raise Http404
-    reservation.save(update_fields=["status"])
+    update_fields = ["status"]
+    if action == "cancel":
+        update_fields.append("cancelled_at")
+    reservation.save(update_fields=update_fields)
     if request.headers.get("HX-Request") == "true":
         return render(
             request,
@@ -569,6 +579,10 @@ def booking_create(request, slug):
     guest = _verified_guest(request, salon)
     if not guest:
         return redirect("guest-start", slug=salon.slug)
+    cancellation_block = active_cancellation_booking_block(
+        salon=salon,
+        customer_email=guest["email"],
+    )
     initial_date = timezone.localdate() + timedelta(days=1)
     active_weekdays = set(
         WorkSchedule.objects.filter(professional__salon=salon).values_list("weekday", flat=True)
@@ -596,6 +610,12 @@ def booking_create(request, slug):
             try:
                 with transaction.atomic():
                     HairSalon.objects.select_for_update().get(pk=salon.pk)
+                    cancellation_block = active_cancellation_booking_block(
+                        salon=salon,
+                        customer_email=guest["email"],
+                    )
+                    if cancellation_block:
+                        raise CancellationBookingBlockReached(cancellation_block)
                     local_tz = ZoneInfo(settings.TIME_ZONE)
                     day_start = timezone.make_aware(datetime.combine(day, time.min), local_tz)
                     day_end = day_start + timedelta(days=1)
@@ -648,6 +668,8 @@ def booking_create(request, slug):
                             reservation=reservation,
                         )
                     send_reservation_confirmation_email(request=request, reservation=reservation)
+            except CancellationBookingBlockReached as error:
+                cancellation_block = error.block
             except BookingLimitReached:
                 form.add_error(None, "Ya tenés cinco reservas activas para esa fecha en esta peluquería.")
             except EmailDeliveryError:
@@ -663,7 +685,13 @@ def booking_create(request, slug):
     return render(
         request,
         "booking/booking_form.html",
-        {"salon": salon, "guest": guest, "form": form, "reward": available_reward(salon, guest["email"])},
+        {
+            "salon": salon,
+            "guest": guest,
+            "form": form,
+            "reward": available_reward(salon, guest["email"]),
+            "cancellation_block": cancellation_block,
+        },
     )
 
 
@@ -701,9 +729,16 @@ def client_cancel(request, slug, token):
     )
     cancelled_now = False
     if request.method == "POST" and reservation.can_client_cancel:
-        reservation.status = Reservation.Status.CANCELLED_CLIENT
-        reservation.save(update_fields=["status"])
-        cancelled_now = True
+        with transaction.atomic():
+            HairSalon.objects.select_for_update().get(pk=salon.pk)
+            reservation = Reservation.objects.select_for_update().select_related(
+                "branch", "service", "professional"
+            ).get(pk=reservation.pk)
+            if reservation.can_client_cancel:
+                reservation.status = Reservation.Status.CANCELLED_CLIENT
+                reservation.cancelled_at = timezone.now()
+                reservation.save(update_fields=["status", "cancelled_at"])
+                cancelled_now = True
     return render(
         request,
         "booking/cancel.html",
