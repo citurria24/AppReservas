@@ -48,6 +48,21 @@ class BookingForm(forms.Form):
         return value
 
 
+class RescheduleForm(forms.Form):
+    date = forms.DateField(label="Nueva fecha", widget=forms.DateInput(attrs={"type": "date"}))
+    slot = forms.CharField(widget=forms.HiddenInput())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["date"].widget.attrs["min"] = timezone.localdate().isoformat()
+
+    def clean_date(self):
+        value = self.cleaned_data["date"]
+        if value < timezone.localdate():
+            raise forms.ValidationError("Elegí una fecha actual o futura.")
+        return value
+
+
 class SalonPolicyForm(forms.ModelForm):
     class Meta:
         model = HairSalon

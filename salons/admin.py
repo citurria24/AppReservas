@@ -11,6 +11,7 @@ from .models import (
     ProfessionalService,
     ProfessionalAbsence,
     Reservation,
+    ReservationReschedule,
     RewardProgram,
     RewardRedemption,
     ScheduleBreak,
@@ -46,6 +47,7 @@ admin.site.register(ScheduleBreak)
 admin.site.register(ProfessionalAbsence)
 admin.site.register(GuestVerification)
 admin.site.register(Reservation)
+admin.site.register(ReservationReschedule)
 admin.site.register(BookingLimitException)
 admin.site.register(RewardProgram)
 admin.site.register(RewardRedemption)

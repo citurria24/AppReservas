@@ -1,0 +1,1 @@
+Tu reserva fue reprogramada en {{ salon.name }}

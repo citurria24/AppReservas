@@ -31,12 +31,14 @@ from .forms import (
     ProfessionalAbsenceForm,
     ProfessionalManagementForm,
     RewardProgramForm,
+    RescheduleForm,
     SalonPolicyForm,
     ScheduleBreakForm,
     ServiceManagementForm,
     WorkScheduleForm,
 )
-from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
+from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, ReservationReschedule, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
+from .rescheduling import RescheduleError, reschedule_reservation, slots_for_reservation
 from .rewards import available_reward
 
 
@@ -333,6 +335,7 @@ def agenda(request):
             "reservation": reservation,
             "can_cancel": reservation.status == Reservation.Status.CONFIRMED and can_manage_reservation(request.user, reservation),
             "can_complete": reservation.status == Reservation.Status.CONFIRMED and can_complete_reservation(request.user, reservation),
+            "can_reschedule": reservation.status == Reservation.Status.CONFIRMED and can_manage_reservation(request.user, reservation),
         }
         for reservation in reservations.order_by("starts_at")
     ]
@@ -369,10 +372,89 @@ def reservation_status(request, pk):
         return render(
             request,
             "agenda/_reservation.html",
-            {"reservation": reservation, "can_cancel": False, "can_complete": False},
+            {"reservation": reservation, "can_cancel": False, "can_complete": False, "can_reschedule": False},
         )
     reservation_date = timezone.localtime(reservation.starts_at).date().isoformat()
     return redirect(f"{reverse('agenda')}?date={reservation_date}")
+
+
+def _reschedule_initial_day(reservation):
+    reservation_day = timezone.localtime(reservation.starts_at).date()
+    return max(reservation_day, timezone.localdate())
+
+
+def _reschedule_form(request, reservation, *, source, changed_by=None):
+    initial_day = _reschedule_initial_day(reservation)
+    form = RescheduleForm(
+        request.POST or None,
+        initial={"date": initial_day} if request.method == "GET" else None,
+    )
+    updated = None
+    if request.method == "POST" and form.is_valid():
+        try:
+            updated = reschedule_reservation(
+                reservation=reservation,
+                day=form.cleaned_data["date"],
+                slot_value=form.cleaned_data["slot"],
+                source=source,
+                changed_by=changed_by,
+                request=request,
+            )
+        except RescheduleError as error:
+            form.add_error(error.field, str(error))
+        except EmailDeliveryError:
+            form.add_error(
+                None,
+                "No pudimos enviar la confirmación. La reserva conserva su horario anterior.",
+            )
+        except (IntegrityError, ValidationError):
+            form.add_error("slot", "Ese horario acaba de ocuparse. Elegí otro.")
+    selected_day = form.cleaned_data.get("date") if form.is_bound and "date" not in form.errors else initial_day
+    slots = slots_for_reservation(reservation, selected_day) if selected_day else []
+    return form, updated, slots
+
+
+@login_required
+def reservation_reschedule(request, pk):
+    reservation = get_object_or_404(accessible_reservations_for(request.user), pk=pk)
+    if not can_manage_reservation(request.user, reservation):
+        raise PermissionDenied
+    if reservation.status != Reservation.Status.CONFIRMED:
+        raise PermissionDenied("La reserva ya no admite reprogramación.")
+    form, updated, slots = _reschedule_form(
+        request,
+        reservation,
+        source=ReservationReschedule.Source.SALON,
+        changed_by=request.user,
+    )
+    if updated:
+        reservation_day = timezone.localtime(updated.starts_at).date().isoformat()
+        return redirect(f"{reverse('agenda')}?date={reservation_day}")
+    return render(
+        request,
+        "booking/reschedule_form.html",
+        {
+            "reservation": reservation,
+            "salon": reservation.salon,
+            "form": form,
+            "slots": slots,
+            "slots_url": reverse("reservation-reschedule-slots", args=[reservation.id]),
+            "back_url": f"{reverse('agenda')}?date={timezone.localtime(reservation.starts_at).date().isoformat()}",
+            "staff_mode": True,
+        },
+    )
+
+
+@login_required
+def reservation_reschedule_slots(request, pk):
+    reservation = get_object_or_404(accessible_reservations_for(request.user), pk=pk)
+    if not can_manage_reservation(request.user, reservation):
+        raise PermissionDenied
+    try:
+        day = datetime.fromisoformat(request.GET.get("date", "")).date()
+    except (TypeError, ValueError):
+        return render(request, "booking/_slots.html", {"slots": [], "incomplete": True})
+    return render(request, "booking/_slots.html", {"slots": slots_for_reservation(reservation, day)})
 
 
 def public_salon(request, slug):
@@ -625,5 +707,61 @@ def client_cancel(request, slug, token):
     return render(
         request,
         "booking/cancel.html",
-        {"salon": salon, "reservation": reservation, "cancelled_now": cancelled_now},
+        {
+            "salon": salon,
+            "reservation": reservation,
+            "cancelled_now": cancelled_now,
+            "rescheduled_now": request.GET.get("reprogramada") == "1",
+        },
     )
+
+
+def client_reschedule(request, slug, token):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    reservation = get_object_or_404(
+        Reservation.objects.select_related("salon", "branch", "service", "professional"),
+        salon=salon,
+        cancellation_token=token,
+    )
+    if not reservation.can_client_reschedule:
+        return render(
+            request,
+            "booking/reschedule_form.html",
+            {"salon": salon, "reservation": reservation, "unavailable": True, "staff_mode": False},
+        )
+    form, updated, slots = _reschedule_form(
+        request,
+        reservation,
+        source=ReservationReschedule.Source.CLIENT,
+    )
+    if updated:
+        return redirect(f"{reverse('client-cancel', args=[salon.slug, reservation.cancellation_token])}?reprogramada=1")
+    return render(
+        request,
+        "booking/reschedule_form.html",
+        {
+            "salon": salon,
+            "reservation": reservation,
+            "form": form,
+            "slots": slots,
+            "slots_url": reverse("client-reschedule-slots", args=[salon.slug, reservation.cancellation_token]),
+            "back_url": reverse("client-cancel", args=[salon.slug, reservation.cancellation_token]),
+            "staff_mode": False,
+        },
+    )
+
+
+def client_reschedule_slots(request, slug, token):
+    salon = get_object_or_404(HairSalon.objects.filter(active=True), slug=slug)
+    reservation = get_object_or_404(
+        Reservation.objects.select_related("salon", "branch", "service", "professional"),
+        salon=salon,
+        cancellation_token=token,
+    )
+    if not reservation.can_client_reschedule:
+        raise Http404
+    try:
+        day = datetime.fromisoformat(request.GET.get("date", "")).date()
+    except (TypeError, ValueError):
+        return render(request, "booking/_slots.html", {"slots": [], "incomplete": True})
+    return render(request, "booking/_slots.html", {"slots": slots_for_reservation(reservation, day)})

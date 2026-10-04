@@ -4,9 +4,8 @@
 </div>
 {% if items %}
   <div class="agenda-list">
-    {% for item in items %}{% include "agenda/_reservation.html" with reservation=item.reservation can_cancel=item.can_cancel can_complete=item.can_complete %}{% endfor %}
+    {% for item in items %}{% include "agenda/_reservation.html" with reservation=item.reservation can_cancel=item.can_cancel can_complete=item.can_complete can_reschedule=item.can_reschedule %}{% endfor %}
   </div>
 {% else %}
   <div class="panel empty"><h2>Agenda libre</h2><p>No hay reservas visibles para los filtros elegidos.</p></div>
 {% endif %}
-

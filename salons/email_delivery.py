@@ -41,3 +41,26 @@ def send_reservation_confirmation_email(*, request, reservation):
         html_template="emails/reservation_confirmation_body.html",
         context=context,
     )
+
+
+def send_reservation_rescheduled_email(*, request, reservation, previous_starts_at):
+    context = {
+        "reservation": reservation,
+        "salon": reservation.salon,
+        "previous_local_start": timezone.localtime(previous_starts_at),
+        "new_local_start": timezone.localtime(reservation.starts_at),
+        "management_url": request.build_absolute_uri(
+            reverse(
+                "client-cancel",
+                args=[reservation.salon.slug, reservation.cancellation_token],
+            )
+        ),
+    }
+    subject = render_to_string("emails/reservation_rescheduled_subject.txt", context).strip().replace("\n", " ")
+    send_templated_email(
+        subject=subject,
+        to=reservation.email,
+        text_template="emails/reservation_rescheduled_body.txt",
+        html_template="emails/reservation_rescheduled_body.html",
+        context=context,
+    )
