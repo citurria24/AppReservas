@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="es">
+<body style="font-family:Arial,sans-serif;color:#102a2a;line-height:1.5">
+  <h1 style="font-size:24px">Reserva confirmada</h1>
+  <p>Hola {{ reservation.first_name }}, tu reserva en <strong>{{ salon.name }}</strong> quedó confirmada.</p>
+  <ul>
+    <li><strong>Sucursal:</strong> {{ reservation.branch.name }}</li>
+    <li><strong>Servicio:</strong> {{ reservation.service.name }}</li>
+    <li><strong>Profesional:</strong> {{ reservation.professional.display_name }}</li>
+    <li><strong>Fecha y hora:</strong> {{ local_start|date:"d/m/Y H:i" }}</li>
+  </ul>
+  <p><a href="{{ cancellation_url }}" style="color:#126b58">Consultar o cancelar la reserva</a></p>
+</body>
+</html>

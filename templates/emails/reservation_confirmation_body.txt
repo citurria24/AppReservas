@@ -1,0 +1,11 @@
+Hola {{ reservation.first_name }},
+
+Tu reserva en {{ salon.name }} quedó confirmada.
+
+Sucursal: {{ reservation.branch.name }}
+Servicio: {{ reservation.service.name }}
+Profesional: {{ reservation.professional.display_name }}
+Fecha y hora: {{ local_start|date:"d/m/Y H:i" }}
+
+Podés consultar o cancelar la reserva en:
+{{ cancellation_url }}

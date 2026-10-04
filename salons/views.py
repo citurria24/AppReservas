@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,6 +19,8 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
+from accounts.email_delivery import EmailDeliveryError
+from .email_delivery import send_guest_verification_email, send_reservation_confirmation_email
 from .forms import (
     BookingForm,
     BookingLimitExceptionForm,
@@ -389,28 +390,34 @@ def guest_start(request, slug):
     form = GuestStartForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         code = f"{secrets.randbelow(1_000_000):06d}"
-        verification = GuestVerification.objects.create(
-            email=form.cleaned_data["email"].lower(),
-            code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(minutes=15),
-        )
-        request.session["pending_guest"] = {
-            "verification_id": verification.id,
-            "salon_id": salon.id,
-            "first_name": form.cleaned_data["first_name"],
-            "last_name": form.cleaned_data["last_name"],
-            "email": form.cleaned_data["email"].lower(),
-            "contact": form.cleaned_data["contact"],
-        }
-        send_mail(
-            "Tu código para reservar en TuTurnoUy",
-            f"Tu código de verificación es {code}. Vence en 15 minutos.",
-            settings.DEFAULT_FROM_EMAIL,
-            [form.cleaned_data["email"]],
-        )
-        if settings.DEBUG:
-            request.session["debug_verification_code"] = code
-        return redirect("guest-verify", slug=salon.slug)
+        email = form.cleaned_data["email"].lower()
+        try:
+            with transaction.atomic():
+                verification = GuestVerification.objects.create(
+                    email=email,
+                    code_hash=make_password(code),
+                    expires_at=timezone.now() + timedelta(minutes=15),
+                )
+                send_guest_verification_email(salon=salon, email=email, code=code)
+        except EmailDeliveryError:
+            request.session.pop("pending_guest", None)
+            request.session.pop("debug_verification_code", None)
+            form.add_error(
+                None,
+                "No pudimos enviar el código en este momento. Revisá el correo e intentá nuevamente.",
+            )
+        else:
+            request.session["pending_guest"] = {
+                "verification_id": verification.id,
+                "salon_id": salon.id,
+                "first_name": form.cleaned_data["first_name"],
+                "last_name": form.cleaned_data["last_name"],
+                "email": email,
+                "contact": form.cleaned_data["contact"],
+            }
+            if settings.DEBUG:
+                request.session["debug_verification_code"] = code
+            return redirect("guest-verify", slug=salon.slug)
     return render(request, "booking/guest_start.html", {"salon": salon, "form": form})
 
 
@@ -558,24 +565,18 @@ def booking_create(request, slug):
                             discount_percent=reward["program"].discount_percent,
                             reservation=reservation,
                         )
+                    send_reservation_confirmation_email(request=request, reservation=reservation)
             except BookingLimitReached:
                 form.add_error(None, "Ya tenés cinco reservas activas para esa fecha en esta peluquería.")
+            except EmailDeliveryError:
+                form.add_error(
+                    None,
+                    "No pudimos enviar la confirmación. La reserva no fue creada; intentá nuevamente.",
+                )
             except (IntegrityError, ValidationError):
                 form.add_error("slot", "El horario acaba de ocuparse. Elegí otro.")
             else:
                 request.session["last_reservation_id"] = reservation.id
-                cancellation_url = request.build_absolute_uri(
-                    reverse("client-cancel", args=[salon.slug, reservation.cancellation_token])
-                )
-                send_mail(
-                    f"Reserva confirmada en {salon.name}",
-                    (
-                        f"Tu reserva quedó confirmada para {timezone.localtime(reservation.starts_at):%d/%m/%Y a las %H:%M}.\n"
-                        f"Podés consultar o cancelar la reserva en: {cancellation_url}"
-                    ),
-                    settings.DEFAULT_FROM_EMAIL,
-                    [reservation.email],
-                )
                 return redirect("booking-success", slug=salon.slug)
     return render(
         request,

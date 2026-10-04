@@ -1,0 +1,31 @@
+services:
+  db:
+    volumes: !override
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      DJANGO_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+      EMAIL_HOST: mailpit
+      EMAIL_PORT: 1025
+      EMAIL_USE_TLS: "False"
+      EMAIL_USE_SSL: "False"
+    ports: !override
+      - "127.0.0.1:8012:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    ports:
+      - "127.0.0.1:8026:8025"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: tuturnouy_email_postgres_data
