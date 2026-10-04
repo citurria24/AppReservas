@@ -1,6 +1,16 @@
 from django import forms
 from django.utils import timezone
-from .models import BookingLimitException, Branch, HairSalon, Professional, RewardProgram, Service
+from .models import (
+    BookingLimitException,
+    Branch,
+    HairSalon,
+    Professional,
+    ProfessionalAbsence,
+    RewardProgram,
+    ScheduleBreak,
+    Service,
+    WorkSchedule,
+)
 
 
 class GuestStartForm(forms.Form):
@@ -87,3 +97,58 @@ class RewardProgramForm(forms.ModelForm):
             "services_required": forms.NumberInput(attrs={"min": 1}),
             "discount_percent": forms.NumberInput(attrs={"min": 1, "max": 100}),
         }
+
+
+class WorkScheduleForm(forms.ModelForm):
+    class Meta:
+        model = WorkSchedule
+        fields = ["professional", "branch", "weekday", "starts_at", "ends_at"]
+        widgets = {
+            "starts_at": forms.TimeInput(attrs={"type": "time"}),
+            "ends_at": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+    def __init__(self, *args, salon, branches, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches
+        self.fields["professional"].queryset = Professional.objects.filter(
+            salon=salon,
+            active=True,
+            branches__in=branches,
+        ).distinct()
+
+
+class ScheduleBreakForm(forms.ModelForm):
+    class Meta:
+        model = ScheduleBreak
+        fields = ["schedule", "starts_at", "ends_at"]
+        widgets = {
+            "starts_at": forms.TimeInput(attrs={"type": "time"}),
+            "ends_at": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+    def __init__(self, *args, salon, branches, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["schedule"].queryset = WorkSchedule.objects.filter(
+            professional__salon=salon,
+            branch__in=branches,
+        ).select_related("professional", "branch")
+
+
+class ProfessionalAbsenceForm(forms.ModelForm):
+    class Meta:
+        model = ProfessionalAbsence
+        fields = ["professional", "branch", "starts_at", "ends_at", "reason"]
+        widgets = {
+            "starts_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "ends_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+        }
+
+    def __init__(self, *args, salon, branches, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["branch"].queryset = branches
+        self.fields["professional"].queryset = Professional.objects.filter(
+            salon=salon,
+            active=True,
+            branches__in=branches,
+        ).distinct()

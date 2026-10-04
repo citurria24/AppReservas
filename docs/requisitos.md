@@ -16,6 +16,7 @@ Reglas implementadas:
 - El invitado informa nombre, apellido, correo y contacto, y verifica un código de seis dígitos antes de reservar.
 - La reserva permite seleccionar sucursal, servicio, profesional, fecha, hora y notas opcionales.
 - La disponibilidad se calcula con la duración por sucursal, jornadas, descansos, ausencias y reservas existentes; no ofrece turnos que atraviesen un descanso o el cierre.
+- Owner y admin gestionan jornadas, descansos y ausencias desde el panel operativo, limitados a sus sucursales autorizadas.
 - Las reservas se crean dentro de una transacción y PostgreSQL impide solapamientos para un mismo profesional mediante una restricción de exclusión.
 - Owner y admin configuran la anticipación mínima para cancelar; el valor vigente queda conservado en cada nueva reserva. El invitado recibe un enlace con token no predecible y puede cancelar hasta ese límite.
 - La agenda interna filtra por fecha y sucursal respetando el alcance de owner, admin y peluquero. Permite cancelar desde el local o marcar una reserva como atendida según el rol.
@@ -33,5 +34,5 @@ Reglas implementadas:
 - Confirmar el período de conteo de las cancelaciones computables.
 - Definir proveedor y flujo de correo para verificación de invitados.
 - Precisar estados de una reserva y reglas de reprogramación.
-- Definir jornadas, pausas y ausencias, incluida su zona horaria y recurrencia.
+- Definir si las jornadas, pausas o ausencias necesitarán reglas de recurrencia adicionales a la configuración semanal actual.
 - Acordar trazabilidad y motivo obligatorio para las excepciones de administradores.

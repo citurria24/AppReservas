@@ -51,6 +51,8 @@ Google OAuth todavía requiere registrar la aplicación y aportar sus credencial
 
 Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlace **Agenda** de la cabecera. Owner ve todas las reservas de su peluquería, admin solo las sucursales asignadas y peluquero únicamente sus propios turnos. Owner/admin pueden cancelar desde el local y los usuarios autorizados pueden marcar una reserva como atendida. `seed_demo` crea una reserva futura por peluquería para probar esta pantalla.
 
+Owner y admin pueden entrar en **Configurar políticas → Gestionar jornadas y ausencias** para agregar o quitar jornadas semanales, descansos y ausencias. Los formularios y acciones quedan restringidos a las sucursales autorizadas del usuario.
+
 ## Cancelaciones
 
 Owner y admin pueden configurar la anticipación mínima desde **Configurar políticas** dentro del detalle de la peluquería. Cada reserva conserva el valor vigente al ser creada. La confirmación muestra un enlace protegido por un token no predecible; el mismo enlace se envía por correo y permite cancelar hasta el plazo configurado. Si el plazo venció, se muestra el teléfono de la sucursal.

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Disponibilidad · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Horarios del equipo</p>
+  <h1>Disponibilidad</h1>
+  <p>Las jornadas, descansos y ausencias determinan los horarios que pueden reservar los clientes.</p>
+</section>
+
+<div class="availability-forms">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}<input type="hidden" name="form_type" value="schedule">
+    <h2>Nueva jornada</h2>
+    {{ schedule_form.non_field_errors }}
+    {% for field in schedule_form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Agregar jornada</button>
+  </form>
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}<input type="hidden" name="form_type" value="break">
+    <h2>Nuevo descanso</h2>
+    {{ break_form.non_field_errors }}
+    {% for field in break_form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Agregar descanso</button>
+  </form>
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}<input type="hidden" name="form_type" value="absence">
+    <h2>Nueva ausencia</h2>
+    {{ absence_form.non_field_errors }}
+    {% for field in absence_form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Agregar ausencia</button>
+  </form>
+</div>
+
+<section class="availability-lists">
+  <div>
+    <h2>Jornadas y descansos</h2>
+    <div class="exception-list">
+      {% for schedule in schedules %}
+        <article class="panel availability-card">
+          <div class="availability-card-title">
+            <div><strong>{{ schedule.professional.display_name }}</strong><span>{{ schedule.branch.name }}</span></div>
+            <form method="post" action="{% url 'availability-delete' salon.slug 'schedule' schedule.id %}">{% csrf_token %}<button class="small-danger" type="submit">Eliminar</button></form>
+          </div>
+          <p>{{ schedule.get_weekday_display }} · {{ schedule.starts_at|time:"H:i" }}–{{ schedule.ends_at|time:"H:i" }}</p>
+          {% for pause in schedule.breaks.all %}
+            <div class="pause-row"><span>Descanso {{ pause.starts_at|time:"H:i" }}–{{ pause.ends_at|time:"H:i" }}</span><form method="post" action="{% url 'availability-delete' salon.slug 'break' pause.id %}">{% csrf_token %}<button class="small-danger" type="submit">Quitar</button></form></div>
+          {% endfor %}
+        </article>
+      {% empty %}<div class="panel empty"><p>No hay jornadas configuradas.</p></div>{% endfor %}
+    </div>
+  </div>
+  <div>
+    <h2>Ausencias</h2>
+    <div class="exception-list">
+      {% for absence in absences %}
+        <article class="panel availability-card">
+          <div class="availability-card-title">
+            <div><strong>{{ absence.professional.display_name }}</strong><span>{{ absence.branch.name }}</span></div>
+            <form method="post" action="{% url 'availability-delete' salon.slug 'absence' absence.id %}">{% csrf_token %}<button class="small-danger" type="submit">Eliminar</button></form>
+          </div>
+          <p>{{ absence.starts_at|date:"d/m/Y H:i" }}–{{ absence.ends_at|date:"d/m/Y H:i" }}</p>
+          {% if absence.reason %}<small>{{ absence.reason }}</small>{% endif %}
+        </article>
+      {% empty %}<div class="panel empty"><p>No hay ausencias registradas.</p></div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+

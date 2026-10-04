@@ -20,8 +20,18 @@ from .access import (
     get_accessible_salon_or_404,
 )
 from .booking import available_slots
-from .forms import BookingForm, BookingLimitExceptionForm, GuestStartForm, GuestVerifyForm, RewardProgramForm, SalonPolicyForm
-from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, Reservation, RewardProgram, RewardRedemption, Service, WorkSchedule
+from .forms import (
+    BookingForm,
+    BookingLimitExceptionForm,
+    GuestStartForm,
+    GuestVerifyForm,
+    ProfessionalAbsenceForm,
+    RewardProgramForm,
+    SalonPolicyForm,
+    ScheduleBreakForm,
+    WorkScheduleForm,
+)
+from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
 from .rewards import available_reward
 
 
@@ -117,6 +127,71 @@ def reward_settings(request, slug):
         "salons/rewards.html",
         {"salon": salon, "form": form, "saved": saved, "recent_redemptions": recent_redemptions},
     )
+
+
+def _availability_scope(user, slug):
+    salon = get_accessible_salon_or_404(user, slug)
+    membership = active_memberships_for(user).get(salon=salon)
+    if membership.role not in {Membership.Role.OWNER, Membership.Role.ADMIN}:
+        raise PermissionDenied
+    branches = accessible_branches_for(user).filter(salon=salon)
+    return salon, branches
+
+
+@login_required
+def availability_settings(request, slug):
+    salon, branches = _availability_scope(request.user, slug)
+    form_type = request.POST.get("form_type") if request.method == "POST" else None
+    schedule_form = WorkScheduleForm(
+        request.POST if form_type == "schedule" else None,
+        salon=salon,
+        branches=branches,
+    )
+    break_form = ScheduleBreakForm(
+        request.POST if form_type == "break" else None,
+        salon=salon,
+        branches=branches,
+    )
+    absence_form = ProfessionalAbsenceForm(
+        request.POST if form_type == "absence" else None,
+        salon=salon,
+        branches=branches,
+    )
+    selected_form = {"schedule": schedule_form, "break": break_form, "absence": absence_form}.get(form_type)
+    if selected_form and selected_form.is_valid():
+        selected_form.save()
+        return redirect("availability-settings", slug=salon.slug)
+    schedules = WorkSchedule.objects.filter(branch__in=branches).select_related("professional", "branch").prefetch_related("breaks")
+    absences = ProfessionalAbsence.objects.filter(branch__in=branches).select_related("professional", "branch")[:30]
+    return render(
+        request,
+        "salons/availability.html",
+        {
+            "salon": salon,
+            "schedule_form": schedule_form,
+            "break_form": break_form,
+            "absence_form": absence_form,
+            "schedules": schedules,
+            "absences": absences,
+        },
+    )
+
+
+@login_required
+def availability_delete(request, slug, kind, pk):
+    if request.method != "POST":
+        raise Http404
+    salon, branches = _availability_scope(request.user, slug)
+    if kind == "schedule":
+        item = get_object_or_404(WorkSchedule, pk=pk, branch__in=branches, professional__salon=salon)
+    elif kind == "break":
+        item = get_object_or_404(ScheduleBreak, pk=pk, schedule__branch__in=branches, schedule__professional__salon=salon)
+    elif kind == "absence":
+        item = get_object_or_404(ProfessionalAbsence, pk=pk, branch__in=branches, professional__salon=salon)
+    else:
+        raise Http404
+    item.delete()
+    return redirect("availability-settings", slug=salon.slug)
 
 
 @login_required
