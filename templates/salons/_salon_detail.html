@@ -12,7 +12,7 @@
       <h3>Servicios</h3>
       <ul class="service-list">
         {% for offering in branch.service_offerings.all %}
-          {% if offering.active %}<li><span>{{ offering.service.name }}</span><strong>{{ offering.duration_minutes }} min</strong></li>{% endif %}
+          {% if offering.active and offering.service.active %}<li><span>{{ offering.service.name }}</span><strong>{{ offering.duration_minutes }} min</strong></li>{% endif %}
         {% empty %}<li class="muted">Sin servicios cargados.</li>{% endfor %}
       </ul>
       <h3>Profesionales</h3>

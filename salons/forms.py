@@ -3,6 +3,7 @@ from django.utils import timezone
 from .models import (
     BookingLimitException,
     Branch,
+    BranchService,
     HairSalon,
     Professional,
     ProfessionalAbsence,
@@ -83,6 +84,54 @@ class BranchManagementForm(forms.ModelForm):
         if duplicate.exists():
             raise forms.ValidationError("Ya existe una sucursal con ese nombre.")
         return value
+
+
+class ServiceManagementForm(forms.ModelForm):
+    class Meta:
+        model = Service
+        fields = ["name", "active"]
+        labels = {"name": "Nombre", "active": "Servicio activo"}
+
+    def __init__(self, *args, salon, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.salon = salon
+
+    def clean_name(self):
+        value = self.cleaned_data["name"].strip()
+        duplicate = Service.objects.filter(salon=self.salon, name__iexact=value).exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise forms.ValidationError("Ya existe un servicio con ese nombre.")
+        return value
+
+
+class BranchServiceManagementForm(forms.ModelForm):
+    class Meta:
+        model = BranchService
+        fields = ["branch", "service", "duration_minutes", "active"]
+        labels = {
+            "branch": "Sucursal",
+            "service": "Servicio",
+            "duration_minutes": "Duración en minutos",
+            "active": "Disponible en esta sucursal",
+        }
+        widgets = {"duration_minutes": forms.NumberInput(attrs={"min": 5, "step": 5})}
+
+    def __init__(self, *args, salon, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.salon = salon
+        self.fields["branch"].queryset = salon.branches.all()
+        self.fields["service"].queryset = salon.services.all()
+        self.fields["duration_minutes"].widget.attrs["min"] = 5
+
+    def clean(self):
+        cleaned_data = super().clean()
+        branch = cleaned_data.get("branch")
+        service = cleaned_data.get("service")
+        if branch and service:
+            duplicate = BranchService.objects.filter(branch=branch, service=service).exclude(pk=self.instance.pk)
+            if duplicate.exists():
+                raise forms.ValidationError("Ese servicio ya está configurado en la sucursal.")
+        return cleaned_data
 
 
 class BookingLimitExceptionForm(forms.ModelForm):

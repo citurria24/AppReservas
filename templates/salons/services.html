@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Servicios · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
+  <p class="eyebrow">Catálogo del local</p>
+  <h1>Servicios</h1>
+  <p>Definí los servicios y su duración en cada sucursal. La duración es común a todos los profesionales que brindan ese servicio allí.</p>
+</section>
+
+<div class="catalog-forms">
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}<input type="hidden" name="form_type" value="service">
+    <h2>Nuevo servicio</h2>
+    {{ service_form.non_field_errors }}
+    {% for field in service_form %}<div class="field{% if field.field.widget.input_type == 'checkbox' %} checkbox-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Crear servicio</button>
+  </form>
+  <form method="post" class="panel booking-form">
+    {% csrf_token %}<input type="hidden" name="form_type" value="offering">
+    <h2>Asignar a una sucursal</h2>
+    {{ offering_form.non_field_errors }}
+    {% for field in offering_form %}<div class="field{% if field.field.widget.input_type == 'checkbox' %} checkbox-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}
+    <button class="primary" type="submit">Guardar disponibilidad</button>
+  </form>
+</div>
+
+<section class="catalog-list">
+  <h2>Catálogo registrado</h2>
+  <div class="card-grid">
+    {% for service in services %}
+      <article class="panel management-card">
+        <div>
+          <strong>{{ service.name }}</strong>
+          <span class="booking-status {% if service.active %}status-confirmed{% else %}status-cancelled_salon{% endif %}">{% if service.active %}Activo{% else %}Inactivo{% endif %}</span>
+        </div>
+        <ul class="service-list catalog-offerings">
+          {% for offering in service.branch_offerings.all %}
+            <li>
+              <span>{{ offering.branch.name }} · {{ offering.duration_minutes }} min{% if not offering.active %} · Inactivo{% endif %}</span>
+              <a href="{% url 'offering-edit' salon.slug offering.id %}">Editar</a>
+            </li>
+          {% empty %}<li class="muted">Todavía no está disponible en ninguna sucursal.</li>{% endfor %}
+        </ul>
+        <a class="secondary" href="{% url 'service-edit' salon.slug service.id %}">Editar servicio</a>
+      </article>
+    {% empty %}<div class="panel empty"><p>No hay servicios registrados.</p></div>{% endfor %}
+  </div>
+</section>
+{% endblock %}

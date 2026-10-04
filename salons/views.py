@@ -24,12 +24,14 @@ from .forms import (
     BookingForm,
     BookingLimitExceptionForm,
     BranchManagementForm,
+    BranchServiceManagementForm,
     GuestStartForm,
     GuestVerifyForm,
     ProfessionalAbsenceForm,
     RewardProgramForm,
     SalonPolicyForm,
     ScheduleBreakForm,
+    ServiceManagementForm,
     WorkScheduleForm,
 )
 from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
@@ -111,6 +113,71 @@ def branch_management(request, slug, pk=None):
         request,
         "salons/branches.html",
         {"salon": salon, "form": form, "editing": branch, "branches": salon.branches.all()},
+    )
+
+
+@login_required
+def service_management(request, slug):
+    salon = _owner_salon_or_403(request.user, slug)
+    form_type = request.POST.get("form_type") if request.method == "POST" else None
+    service_form = ServiceManagementForm(
+        request.POST if form_type == "service" else None,
+        salon=salon,
+        auto_id="service_%s",
+    )
+    offering_form = BranchServiceManagementForm(
+        request.POST if form_type == "offering" else None,
+        salon=salon,
+        auto_id="offering_%s",
+    )
+    if form_type == "service" and service_form.is_valid():
+        service = service_form.save(commit=False)
+        service.salon = salon
+        service.save()
+        return redirect("service-management", slug=salon.slug)
+    if form_type == "offering" and offering_form.is_valid():
+        offering_form.save()
+        return redirect("service-management", slug=salon.slug)
+    services = salon.services.prefetch_related("branch_offerings__branch")
+    return render(
+        request,
+        "salons/services.html",
+        {
+            "salon": salon,
+            "service_form": service_form,
+            "offering_form": offering_form,
+            "services": services,
+        },
+    )
+
+
+@login_required
+def service_edit(request, slug, pk):
+    salon = _owner_salon_or_403(request.user, slug)
+    service = get_object_or_404(Service, salon=salon, pk=pk)
+    form = ServiceManagementForm(request.POST or None, instance=service, salon=salon)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("service-management", slug=salon.slug)
+    return render(
+        request,
+        "salons/catalog_edit.html",
+        {"salon": salon, "form": form, "title": f"Editar {service.name}", "section": "Servicio", "cancel_url": reverse("service-management", args=[salon.slug])},
+    )
+
+
+@login_required
+def offering_edit(request, slug, pk):
+    salon = _owner_salon_or_403(request.user, slug)
+    offering = get_object_or_404(BranchService, branch__salon=salon, service__salon=salon, pk=pk)
+    form = BranchServiceManagementForm(request.POST or None, instance=offering, salon=salon)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("service-management", slug=salon.slug)
+    return render(
+        request,
+        "salons/catalog_edit.html",
+        {"salon": salon, "form": form, "title": f"Editar {offering.service.name} en {offering.branch.name}", "section": "Servicio por sucursal", "cancel_url": reverse("service-management", args=[salon.slug])},
     )
 
 
