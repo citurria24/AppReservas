@@ -55,6 +55,10 @@ Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlac
 
 Owner y admin pueden entrar en **Configurar políticas → Gestionar jornadas y ausencias** para agregar o quitar jornadas semanales, descansos y ausencias. Los formularios y acciones quedan restringidos a las sucursales autorizadas del usuario.
 
+## Catálogo operativo
+
+El owner puede administrar desde **Configurar políticas** las sucursales, los servicios y los profesionales sin ingresar a Django Admin. Puede activar o desactivar registros conservando su historial, definir la duración de cada servicio por sucursal y asignar profesionales a sus sucursales y servicios. Estas pantallas validan el aislamiento por peluquería; la vinculación de un profesional continúa siendo independiente del rol operativo de un usuario.
+
 ## Cancelaciones
 
 Owner y admin pueden configurar la anticipación mínima desde **Configurar políticas** dentro del detalle de la peluquería. Cada reserva conserva el valor vigente al ser creada. La confirmación muestra un enlace protegido por un token no predecible; el mismo enlace se envía por correo y permite cancelar hasta el plazo configurado. Si el plazo venció, se muestra el teléfono de la sucursal.
@@ -77,7 +81,7 @@ Los datos demo activan en Estilo Norte una recompensa de 15% después de dos ser
 
 Ejecutar las pruebas reales sobre PostgreSQL: `docker compose run --rm web python manage.py test`
 
-Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
+Las pruebas comprueban explícitamente el motor PostgreSQL, aislamiento entre peluquerías, respuesta 404 ante acceso cruzado, autorización por sucursal, administración segura del catálogo, un solo owner, independencia entre rol y profesional, duración única por sucursal, verificación del invitado, aislamiento del portal del cliente por correo y peluquería, creación completa de una reserva, jornadas y descansos, rechazo de IDs de otro tenant y prevención de solapamientos en PostgreSQL.
 
 ## Arquitectura
 

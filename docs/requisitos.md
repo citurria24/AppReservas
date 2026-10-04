@@ -10,6 +10,7 @@ Reglas implementadas:
 - Ser profesional es una condición independiente del rol de la membresía. Un profesional puede estar vinculado o no a un usuario.
 - Cada servicio define una sola duración por sucursal. Esa duración es común a todos los profesionales que lo prestan allí.
 - Los owners ven todas las sucursales activas de su peluquería. Los demás miembros solo ven las sucursales asignadas explícitamente.
+- El owner gestiona sucursales, servicios, duraciones por sucursal y asignaciones de profesionales desde el panel operativo. Puede desactivar registros sin borrar su historial y no puede consultar ni modificar objetos de otra peluquería.
 - Las consultas del panel parten siempre de la membresía activa del usuario. Las relaciones entre objetos de distintas peluquerías son rechazadas.
 - Django Admin queda reservado para la administración técnica de la plataforma; las cuentas operativas demo no tienen acceso de staff.
 - Cada peluquería tiene un enlace público para iniciar una reserva.
