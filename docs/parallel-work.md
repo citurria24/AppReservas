@@ -141,3 +141,17 @@ Cada worktree usa su propio `.env` ignorado por Git. Aunque los nombres lógicos
 - Verificación HTTP y SMTP: web `200` en el puerto 8012; Mailpit y entrega SMTP disponibles en el puerto 8026.
 - Archivos en conflicto entre ambas ramas respecto de `e9118c8`: ninguno.
 - Publicación: sin merge y sin push, según lo solicitado.
+
+## Validación integrada
+
+- Rama: `integration/team-email`, creada desde `develop` en `e9118c8`.
+- Orden de integración: `feature/team-management` y luego `feature/email-delivery`.
+- Conflictos de Git: ninguno.
+- Entorno: proyecto Compose `tuturnouy_integration` con PostgreSQL propio en el volumen `tuturnouy_integration_postgres_data`.
+- Aplicación: `http://127.0.0.1:8013/`.
+- Mailpit: `http://127.0.0.1:8027/`.
+- Suite conjunta: 68 pruebas aprobadas sobre PostgreSQL.
+- Migraciones: `makemigrations --check --dry-run` sin cambios; migraciones aplicadas y `migrate --check` sin pendientes.
+- Datos demo: carga idempotente ejecutada correctamente.
+- Verificación HTTP: login, enlace público y recuperación de contraseña respondieron `200`.
+- Verificación SMTP: entrega real recibida por Mailpit en el entorno integrado.
