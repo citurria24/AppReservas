@@ -130,3 +130,14 @@ Cada worktree usa su propio `.env` ignorado por Git. Aunque los nombres lógicos
 - Migraciones: no se generaron cambios.
 - Verificación HTTP: login responde `200` en `http://127.0.0.1:8011/`.
 - Publicación: sin merge y sin push, según lo solicitado.
+
+## Estado del bloque de correo
+
+- Implementación: `8189589db01f8274b492c4539fb3f0e91ac0d778` (`feat: agregar entrega de correo y recuperación de acceso`).
+- Documentación: `47316fe7fc33aa55f6d09e1398dd4ea8edd3ccff` (`docs: documentar entorno y entrega de correo`).
+- Pruebas específicas: 9 aprobadas sobre `tuturnouy_email` y verificadas nuevamente desde el agente principal.
+- Suite completa: 61 aprobadas sobre `tuturnouy_email`.
+- Migraciones: no se generaron cambios ni quedaron migraciones pendientes.
+- Verificación HTTP y SMTP: web `200` en el puerto 8012; Mailpit y entrega SMTP disponibles en el puerto 8026.
+- Archivos en conflicto entre ambas ramas respecto de `e9118c8`: ninguno.
+- Publicación: sin merge y sin push, según lo solicitado.
