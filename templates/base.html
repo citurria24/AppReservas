@@ -20,6 +20,14 @@
           <button class="link-button" type="submit">Salir</button>
         </form>
       </div>
+    {% elif guest and salon %}
+      <div class="account">
+        <span>{{ guest.email }}</span>
+        <form method="post" action="{% url 'guest-logout' salon.slug %}">
+          {% csrf_token %}
+          <button class="link-button" type="submit">Salir / cambiar correo</button>
+        </form>
+      </div>
     {% endif %}
   </header>
   <main class="container">{% block content %}{% endblock %}</main>
