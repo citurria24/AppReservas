@@ -1,10 +1,13 @@
+{% if can_bulk_complete %}
+  <p><a class="secondary" href="{% url 'reservation-bulk-complete' %}?date={{ selected_date|date:'Y-m-d' }}&amp;branch={{ selected_branch|urlencode }}">Marcar atendidas las finalizadas</a></p>
+{% endif %}
 <div class="agenda-date-row">
   <h2>{{ selected_date|date:"l d \d\e F"|capfirst }}</h2>
   <span>{{ items|length }} reserva{{ items|length|pluralize }}</span>
 </div>
 {% if items %}
   <div class="agenda-list">
-    {% for item in items %}{% include "agenda/_reservation.html" with reservation=item.reservation can_cancel=item.can_cancel can_complete=item.can_complete can_reschedule=item.can_reschedule %}{% endfor %}
+    {% for item in items %}{% include "agenda/_reservation.html" with reservation=item.reservation can_cancel=item.can_cancel can_complete=item.can_complete can_reschedule=item.can_reschedule can_no_show=item.can_no_show %}{% endfor %}
   </div>
 {% else %}
   <div class="panel empty"><h2>Agenda libre</h2><p>No hay reservas visibles para los filtros elegidos.</p></div>

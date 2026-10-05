@@ -1,7 +1,9 @@
 from django.urls import include, path
-from . import views
+from . import views, statistics_views
 
 urlpatterns = [
+    path("peluquerias/<slug:slug>/estadisticas/", statistics_views.statistics, name="statistics"),
+    path("peluquerias/<slug:slug>/estadisticas/excel/", statistics_views.statistics_export, name="statistics-export"),
     path("", views.dashboard, name="dashboard"),
     path("peluquerias/<slug:slug>/", views.salon_detail, name="salon-detail"),
     path("peluquerias/<slug:slug>/configuracion/", views.salon_settings, name="salon-settings"),
@@ -17,6 +19,7 @@ urlpatterns = [
     path("peluquerias/<slug:slug>/recompensas/", views.reward_settings, name="reward-settings"),
     path("peluquerias/<slug:slug>/disponibilidad/", views.availability_settings, name="availability-settings"),
     path("peluquerias/<slug:slug>/disponibilidad/<str:kind>/<int:pk>/eliminar/", views.availability_delete, name="availability-delete"),
+    path("agenda/marcar-atendidas/", views.reservation_bulk_complete, name="reservation-bulk-complete"),
     path("agenda/", views.agenda, name="agenda"),
     path("agenda/reservas/<int:pk>/estado/", views.reservation_status, name="reservation-status"),
     path("agenda/reservas/<int:pk>/reprogramar/", views.reservation_reschedule, name="reservation-reschedule"),

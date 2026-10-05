@@ -293,6 +293,7 @@ class Reservation(models.Model):
         CANCELLED_CLIENT = "cancelled_client", "Cancelada por cliente"
         CANCELLED_SALON = "cancelled_salon", "Cancelada por local"
         COMPLETED = "completed", "Atendida"
+        NO_SHOW = "no_show", "Ausente"
 
     salon = models.ForeignKey(HairSalon, on_delete=models.PROTECT, related_name="reservations", verbose_name="peluquería")
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="reservations", verbose_name="sucursal")
@@ -363,6 +364,20 @@ class Reservation(models.Model):
     @property
     def can_client_reschedule(self):
         return self.can_client_cancel
+
+
+class ReservationStatusChange(models.Model):
+    reservation = models.ForeignKey(Reservation, on_delete=models.PROTECT, related_name="status_changes")
+    previous_status = models.CharField(max_length=24, choices=Reservation.Status.choices)
+    new_status = models.CharField(max_length=24, choices=Reservation.Status.choices)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="reservation_status_changes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
 
 
 class ReservationReschedule(models.Model):

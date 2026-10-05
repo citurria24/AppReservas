@@ -1,4 +1,9 @@
 import secrets
+from urllib.parse import urlencode
+from django.contrib import messages
+from django.core import signing
+from django.http import HttpResponseBadRequest
+from .bulk_completion import managing_memberships, preview_completion, complete_preview
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from django.conf import settings
@@ -14,7 +19,6 @@ from .access import (
     accessible_branches_for,
     accessible_reservations_for,
     active_memberships_for,
-    can_complete_reservation,
     can_manage_reservation,
     get_accessible_salon_or_404,
 )
@@ -38,9 +42,10 @@ from .forms import (
     ServiceManagementForm,
     WorkScheduleForm,
 )
-from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, ReservationReschedule, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
+from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, ReservationReschedule, ReservationStatusChange, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
 from .rescheduling import RescheduleError, reschedule_reservation, slots_for_reservation
 from .rewards import available_reward
+from .reservation_status import change_reservation_status, reservation_actions
 
 
 class BookingLimitReached(Exception):
@@ -337,12 +342,7 @@ def agenda(request):
     if branch_id:
         reservations = reservations.filter(branch_id=branch_id)
     items = [
-        {
-            "reservation": reservation,
-            "can_cancel": reservation.status == Reservation.Status.CONFIRMED and can_manage_reservation(request.user, reservation),
-            "can_complete": reservation.status == Reservation.Status.CONFIRMED and can_complete_reservation(request.user, reservation),
-            "can_reschedule": reservation.status == Reservation.Status.CONFIRMED and can_manage_reservation(request.user, reservation),
-        }
+        {"reservation": reservation, **reservation_actions(request.user, reservation)}
         for reservation in reservations.order_by("starts_at")
     ]
     context = {
@@ -350,6 +350,7 @@ def agenda(request):
         "branches": accessible_branches_for(request.user).select_related("salon"),
         "selected_date": selected_date,
         "selected_branch": branch_id or "",
+        "can_bulk_complete": managing_memberships(request.user).exists(),
     }
     template = "agenda/_results.html" if request.headers.get("HX-Request") == "true" else "agenda/index.html"
     return render(request, template, context)
@@ -359,30 +360,12 @@ def agenda(request):
 def reservation_status(request, pk):
     if request.method != "POST":
         raise Http404
-    reservation = get_object_or_404(accessible_reservations_for(request.user), pk=pk)
-    action = request.POST.get("action")
-    if reservation.status != Reservation.Status.CONFIRMED:
-        raise PermissionDenied("La reserva ya no admite cambios.")
-    if action == "cancel":
-        if not can_manage_reservation(request.user, reservation):
-            raise PermissionDenied
-        reservation.status = Reservation.Status.CANCELLED_SALON
-        reservation.cancelled_at = timezone.now()
-    elif action == "complete":
-        if not can_complete_reservation(request.user, reservation):
-            raise PermissionDenied
-        reservation.status = Reservation.Status.COMPLETED
-    else:
-        raise Http404
-    update_fields = ["status"]
-    if action == "cancel":
-        update_fields.append("cancelled_at")
-    reservation.save(update_fields=update_fields)
+    reservation = change_reservation_status(user=request.user, pk=pk, action=request.POST.get("action"))
     if request.headers.get("HX-Request") == "true":
         return render(
             request,
             "agenda/_reservation.html",
-            {"reservation": reservation, "can_cancel": False, "can_complete": False, "can_reschedule": False},
+            {"reservation": reservation, **reservation_actions(request.user, reservation)},
         )
     reservation_date = timezone.localtime(reservation.starts_at).date().isoformat()
     return redirect(f"{reverse('agenda')}?date={reservation_date}")
@@ -757,6 +740,10 @@ def client_cancel(request, slug, token):
                 reservation.status = Reservation.Status.CANCELLED_CLIENT
                 reservation.cancelled_at = timezone.now()
                 reservation.save(update_fields=["status", "cancelled_at"])
+                ReservationStatusChange.objects.create(
+                    reservation=reservation, previous_status=Reservation.Status.CONFIRMED,
+                    new_status=Reservation.Status.CANCELLED_CLIENT,
+                )
                 cancelled_now = True
     return render(
         request,
@@ -819,3 +806,24 @@ def client_reschedule_slots(request, slug, token):
     except (TypeError, ValueError):
         return render(request, "booking/_slots.html", {"slots": [], "incomplete": True})
     return render(request, "booking/_slots.html", {"slots": slots_for_reservation(reservation, day)})
+
+
+@login_required
+def reservation_bulk_complete(request):
+    if not managing_memberships(request.user).exists():
+        raise PermissionDenied
+    if request.method == 'POST':
+        try:
+            day, branch, count = complete_preview(request.user, request.POST.get('token', ''))
+        except (signing.BadSignature, ValueError, TypeError, KeyError):
+            return HttpResponseBadRequest('Confirmación inválida o vencida. Volvé a la agenda.')
+        messages.success(request, f'Se marcaron {count} reservas como atendidas.' if count else 'No hay reservas finalizadas pendientes de marcar como atendidas.')
+        query = urlencode({'date': day.isoformat(), 'branch': branch.pk if branch else ''})
+        return redirect(reverse('agenda') + '?' + query)
+    if request.method != 'GET':
+        raise Http404
+    try:
+        day, branch, count, token = preview_completion(request.user, request.GET.get('date', ''), request.GET.get('branch', ''))
+    except (ValueError, TypeError):
+        return HttpResponseBadRequest('Fecha o sucursal inválida.')
+    return render(request, 'agenda/bulk_confirm.html', {'day': day, 'branch': branch, 'count': count, 'token': token})

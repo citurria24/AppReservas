@@ -51,9 +51,23 @@ Google OAuth todavía requiere registrar la aplicación y aportar sus credencial
 
 ## Agenda interna
 
-Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlace **Agenda** de la cabecera. Owner ve todas las reservas de su peluquería, admin solo las sucursales asignadas y peluquero únicamente sus propios turnos. Owner/admin pueden cancelar desde el local y los usuarios autorizados pueden marcar una reserva como atendida. `seed_demo` crea una reserva futura por peluquería para probar esta pantalla.
+Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlace **Agenda** de la cabecera. Owner ve todas las reservas de su peluquería, admin solo las sucursales asignadas y peluquero únicamente sus propios turnos. Las reservas nuevas comienzan Confirmadas. Owner puede operar todas las reservas de su peluquería; admin, las sucursales autorizadas; peluquero, únicamente los turnos de su Professional vinculado en las sucursales asignadas. Desde Confirmada pueden marcarlas atendidas o ausentes. Ausente significa que el cliente no asistió al turno. Atendida, Ausente y ambas cancelaciones son finales. Owner/admin conservan la cancelación desde el local y la reprogramación únicamente de Confirmadas. Los badges y acciones se actualizan también mediante HTMX. `seed_demo` crea una reserva futura por peluquería para probar esta pantalla.
 
 Owner y admin pueden entrar en **Configurar políticas → Gestionar jornadas y ausencias** para agregar o quitar jornadas semanales, descansos y ausencias. Los formularios y acciones quedan restringidos a las sucursales autorizadas del usuario.
+
+## Marcado masivo de atendidas
+
+Desde la agenda, Owner y Admin pueden usar **Marcar atendidas las finalizadas**. Primero se muestra cuántas reservas cambiarán y se solicita confirmación. Solo se incluyen Confirmadas de la fecha seleccionada y de la sucursal elegida, o de todas las sucursales que el usuario administra si no hay filtro. La finalización se calcula como inicio más `duration_minutes` guardados y debe ser anterior a la hora actual.
+
+La vista previa no modifica datos. La confirmación firmada vence a los 15 minutos y queda ligada al usuario y al lote mostrado: no incorpora turnos que finalicen después. Al ejecutar se vuelven a comprobar permisos, filtros y estado con bloqueo de filas. El lote completo y una entrada de auditoría por reserva se guardan en una transacción. Si una reserva deja de ser elegible, se excluye y se informa la cantidad realmente modificada; si no hay ninguna, se muestra el mensaje correspondiente. El peluquero no puede usar esta acción. Se conserva **Marcar atendida** individual y la agenda vuelve a cargar con los mismos filtros.
+
+## Estadísticas y Excel
+
+**Estadísticas** aparece exclusivamente para Owner, con un enlace por peluquería administrada. Admin y Peluquero no pueden acceder a la página ni a la descarga por URL. Se filtra por mes, año y sucursal, incluyendo sucursales inactivas para conservar reportes históricos.
+
+El mes se determina por el inicio del turno en America/Montevideo. El reporte refleja el estado actual: total, atendidas, ausentes, cancelaciones por cliente y local, clientes únicos por correo sin distinguir mayúsculas, reservas con descuento/recompensa aplicada y desgloses por sucursal, profesional y servicio. Asistencia = atendidas / (atendidas + ausentes); cancelación = ambas cancelaciones / total. Sin denominador, el porcentaje es cero. Los descuentos cuentan reservas con `reward_discount_percent > 0`, cualquiera sea su estado: representan beneficios aplicados, no ingresos ni canjes efectivamente disfrutados.
+
+**Descargar Excel** usa exactamente los mismos filtros y cálculos. Con `openpyxl==3.1.5`, genera en memoria un XLSX con **Resumen**, **Reservas**, **Profesionales**, **Servicios** y **Sucursales**, encabezados destacados, autofiltros, fila congelada y formatos de fecha, hora y porcentaje. El nombre es `TuTurnoUy_<peluqueria>_<AAAA-MM>[_<sucursal>].xlsx`. Los textos se escriben como texto, incluyendo los que comienzan con `=`. No se guardan archivos permanentemente: PostgreSQL sigue siendo la fuente de verdad. No se calculan métricas económicas.
 
 ## Catálogo operativo
 
@@ -69,6 +83,8 @@ El owner está protegido: no aparece como membresía editable, no puede desactiv
 
 Owner y admin pueden configurar la anticipación mínima desde **Configurar políticas** dentro del detalle de la peluquería. Cada reserva conserva el valor vigente al ser creada. La confirmación muestra un enlace protegido por un token no predecible; el mismo enlace se envía por correo y permite cancelar hasta el plazo configurado. Si el plazo venció, se muestra el teléfono de la sucursal.
 
+Tres cancelaciones del cliente en una ventana móvil de 30 días bloquean nuevas reservas durante 24 horas. Se usa `cancelled_at`, se excluyen las cancelaciones del local y el bloqueo queda aislado por correo y peluquería.
+
 Desde esa misma configuración se registran excepciones al límite de cinco reservas activas por cliente, fecha y peluquería. Cada excepción permite una reserva adicional, es de un solo uso y conserva correo, fecha, motivo, usuario autorizante y reserva asociada.
 
 ## Reprogramación
@@ -82,6 +98,12 @@ La reprogramación mantiene sucursal, servicio, profesional, duración, recompen
 El owner puede activar un programa desde **Configurar recompensas**, elegir meta de servicios atendidos, período mensual o anual y porcentaje de descuento. Al alcanzar la meta, el beneficio se aplica automáticamente a la siguiente reserva del mismo correo verificado. El canje queda asociado a esa reserva y no puede repetirse dentro del mismo período.
 
 Los datos demo activan en Estilo Norte una recompensa de 15% después de dos servicios mensuales. Para probarla, iniciá el flujo de invitado con `cliente.recompensa@example.test`; los dos servicios atendidos necesarios ya están cargados.
+
+## Estados y auditoría
+
+Los estados definitivos son Confirmada (`confirmed`), Atendida (`completed`), Ausente (`no_show`), Cancelada por cliente (`cancelled_client`) y Cancelada por local (`cancelled_salon`). Solo Atendida computa para recompensas. Las reservas Confirmadas ocupan disponibilidad y quedan protegidas por la misma restricción PostgreSQL de superposición; los estados finales liberan el intervalo, conservando el comportamiento histórico. Las Confirmadas cuentan para el límite diario de cinco.
+
+`ReservationStatusChange` registra reserva, estado anterior/nuevo, fecha y usuario obligatorio para cambios internos; las cancelaciones por token del cliente no tienen usuario interno. Cambio e historial se guardan de manera atómica, bloqueando la reserva para evitar transiciones concurrentes inválidas. No existe edición operativa del historial y Django Admin lo ofrece solo para consulta. La migración `0009` convierte registros `in_progress` a `confirmed` bajo la restricción anterior y luego la reemplaza por una que protege únicamente Confirmadas. Conserva la auditoría anterior y agrega una entrada por conversión automática, sin usuario. No modifica los otros estados. Revertir el esquema no reconstruye cuáles reservas tenían ese valor eliminado.
 
 ## Migraciones y datos
 

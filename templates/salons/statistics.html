@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Estadísticas · {{ salon.name }}{% endblock %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">{{ salon.name }}</p><h1>Estadísticas</h1><p>Reservas del mes según su fecha de inicio y su estado actual.</p></section>
+<form method="get" class="panel agenda-filters">{{ form.non_field_errors }}
+  {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+  <button class="primary" type="submit">Consultar</button>
+</form>
+{% if report %}
+<p><a class="secondary" href="{% url 'statistics-export' salon.slug %}?{{ export_filters }}">Descargar Excel</a></p>
+<section class="panel"><h2>Resumen · {{ report.year }}-{{ report.month|stringformat:'02d' }}</h2>
+<dl class="summary">
+  <div><dt>Total de reservas</dt><dd>{{ report.summary.total }}</dd></div>
+  <div><dt>Atendidas</dt><dd>{{ report.summary.attended }}</dd></div>
+  <div><dt>Ausentes</dt><dd>{{ report.summary.absent }}</dd></div>
+  <div><dt>Canceladas por cliente</dt><dd>{{ report.summary.cancelled_client }}</dd></div>
+  <div><dt>Canceladas por local</dt><dd>{{ report.summary.cancelled_salon }}</dd></div>
+  <div><dt>Asistencia</dt><dd>{% widthratio report.summary.attendance_rate 1 100 %}%</dd></div>
+  <div><dt>Cancelación</dt><dd>{% widthratio report.summary.cancellation_rate 1 100 %}%</dd></div>
+  <div><dt>Clientes únicos</dt><dd>{{ report.summary.unique_clients }}</dd></div>
+  <div><dt>Reservas con descuento/recompensa aplicada</dt><dd>{{ report.summary.discounts }}</dd></div>
+</dl>
+<p class="muted">Asistencia: atendidas / (atendidas + ausentes). Cancelación: ambas cancelaciones / total. Sin reservas computables, el porcentaje es 0. Los clientes únicos se cuentan por correo, sin distinguir mayúsculas. Los descuentos cuentan reservas con porcentaje aplicado, cualquiera sea su estado.</p>
+</section>
+<section class="panel distribution-panel" aria-labelledby="distribution-title">
+  <h2 id="distribution-title">Distribución de reservas</h2>
+  <p class="muted">Estados de las reservas durante el período seleccionado.</p>
+  {% if report.summary.total %}
+    {{ report.summary|json_script:'reservation-distribution-data' }}
+    <div class="reservation-distribution" data-reservation-distribution hidden>
+      <div class="reservation-donut" role="img">
+        <div class="reservation-donut-total" aria-hidden="true"><strong>{{ report.summary.total }}</strong><span>reservas</span></div>
+      </div>
+      <ul class="distribution-legend" aria-label="Estados, cantidades y porcentajes"></ul>
+    </div>
+    <noscript><p>Consultá las cantidades por estado en el resumen. Activá JavaScript para visualizar el gráfico.</p></noscript>
+    <script src="{% static 'js/reservation-distribution.js' %}" defer></script>
+  {% else %}
+    <p>No hay reservas para el período y la sucursal seleccionados.</p>
+  {% endif %}
+</section>
+{% include 'salons/_statistics_group.html' with title='Reservas por sucursal' rows=report.groups.branch %}
+{% include 'salons/_statistics_group.html' with title='Reservas por profesional' rows=report.groups.professional %}
+{% include 'salons/_statistics_group.html' with title='Reservas por servicio' rows=report.groups.service %}
+{% endif %}
+{% endblock %}

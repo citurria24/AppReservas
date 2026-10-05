@@ -11,7 +11,7 @@
 {% if unavailable %}
   <div class="panel empty">
     <h2>Esta reserva ya no se puede reprogramar</h2>
-    <p>Puede estar cancelada, atendida o fuera del plazo permitido.</p>
+    <p>Puede estar atendida, ausente, cancelada o fuera del plazo permitido.</p>
     <p>Comunicate con {{ salon.name }} al {{ reservation.branch.phone|default:"teléfono del local" }}.</p>
     <a class="secondary" href="{% url 'client-cancel' salon.slug reservation.cancellation_token %}">Volver al detalle</a>
   </div>

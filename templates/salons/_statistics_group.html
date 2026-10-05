@@ -1,0 +1,4 @@
+<section class="panel"><h2>{{ title }}</h2>
+<div class="statistics-table"><table><thead><tr><th>Nombre</th><th>Reservas</th><th>Atendidas</th><th>Ausencias</th><th>Cancelaciones</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.attended }}</td><td>{{ row.absent }}</td><td>{{ row.cancelled }}</td></tr>{% empty %}<tr><td colspan="5">No hay reservas para este período.</td></tr>{% endfor %}
+</tbody></table></div></section>

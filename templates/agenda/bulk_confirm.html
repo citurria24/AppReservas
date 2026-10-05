@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Confirmar atendidas · TuTurnoUy{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Marcar atendidas las finalizadas</h1>
+  <p>{{ day|date:'d/m/Y' }} · {{ branch|default:'Todas las sucursales autorizadas' }}</p>
+  {% if count %}
+    <p>Se marcarán {{ count }} reservas como atendidas. ¿Deseás continuar?</p>
+    <p>Solo se incluyen las reservas confirmadas que ya finalizaron. Si alguna cambia antes de confirmar, se excluirá del lote.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="token" value="{{ token }}"><button class="primary" type="submit">Confirmar</button></form>
+  {% else %}<p>No hay reservas finalizadas pendientes de marcar como atendidas.</p>{% endif %}
+  <p><a class="secondary" href="{% url 'agenda' %}?date={{ day|date:'Y-m-d' }}&amp;branch={{ branch.pk|default:'' }}">Volver a la agenda</a></p>
+</section>
+{% endblock %}
