@@ -17,6 +17,7 @@ from salons.models import (
 from salons.rescheduling import RescheduleError, reschedule_reservation
 from salons.rewards import available_reward
 from salons.tests import test_agenda
+from salons.tests.test_agenda import after_start
 
 
 class ReservationStatusTests(TestCase):
@@ -41,8 +42,9 @@ class ReservationStatusTests(TestCase):
         ]:
             with self.subTest(previous=previous, action=action):
                 Reservation.objects.filter(pk=self.own_reservation.pk).update(status=previous)
-                before = timezone.now()
-                response = self.post(self.owner, self.own_reservation, action)
+                with after_start(self.own_reservation):
+                    before = timezone.now()
+                    response = self.post(self.owner, self.own_reservation, action)
                 self.assertEqual(response.status_code, 302)
                 self.own_reservation.refresh_from_db()
                 self.assertEqual(self.own_reservation.status, target)
@@ -56,7 +58,8 @@ class ReservationStatusTests(TestCase):
     def test_admin_authorized_branch(self):
         for action in ('complete', 'no_show'):
             Reservation.objects.filter(pk=self.own_reservation.pk).update(status='confirmed')
-            self.assertEqual(self.post(self.admin, self.own_reservation, action).status_code, 302)
+            with after_start(self.own_reservation):
+                self.assertEqual(self.post(self.admin, self.own_reservation, action).status_code, 302)
 
     def test_admin_unauthorized_branch(self):
         Reservation.objects.filter(pk=self.own_reservation.pk).update(branch=self.other_branch_same_salon)
@@ -67,7 +70,8 @@ class ReservationStatusTests(TestCase):
     def test_hairdresser_own_reservation(self):
         for action in ('complete', 'no_show'):
             Reservation.objects.filter(pk=self.own_reservation.pk).update(status='confirmed')
-            self.assertEqual(self.post(self.hairdresser, self.own_reservation, action).status_code, 302)
+            with after_start(self.own_reservation):
+                self.assertEqual(self.post(self.hairdresser, self.own_reservation, action).status_code, 302)
 
     def test_hairdresser_cannot_modify_colleague_or_foreign_reservation(self):
         for reservation in (self.colleague_reservation, self.foreign_reservation):
@@ -109,13 +113,14 @@ class ReservationStatusTests(TestCase):
                     self.assertIsNone(reward)
 
     def test_htmx_completion_hides_final_actions(self):
-        response = self.post(self.owner, self.own_reservation, 'complete', HTTP_HX_REQUEST='true')
+        with after_start(self.own_reservation):
+            response = self.post(self.owner, self.own_reservation, 'complete', HTTP_HX_REQUEST='true')
         self.assertContains(response, 'Atendida')
         self.assertNotContains(response, 'reservation-actions')
 
     def test_audit_failure_rolls_back_state_change(self):
         self.client.force_login(self.owner)
-        with patch('salons.reservation_status.ReservationStatusChange.objects.create', side_effect=RuntimeError('audit failure')):
+        with after_start(self.own_reservation), patch('salons.reservation_status.ReservationStatusChange.objects.create', side_effect=RuntimeError('audit failure')):
             with self.assertRaises(RuntimeError):
                 self.post(self.owner, self.own_reservation, 'complete')
         self.own_reservation.refresh_from_db()
@@ -182,7 +187,8 @@ class ReservationStatusTests(TestCase):
     def test_agenda_buttons_respect_role(self):
         url = reverse('agenda') + '?date=' + self.day.isoformat()
         self.client.force_login(self.hairdresser)
-        response = self.client.get(url)
+        with after_start(self.own_reservation):
+            response = self.client.get(url)
         self.assertNotContains(response, '>Iniciar<')
         self.assertContains(response, 'Marcar ausente')
         self.assertNotContains(response, 'Reprogramar')

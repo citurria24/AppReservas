@@ -25,6 +25,7 @@ def slots_for_reservation(reservation, day):
         professional=reservation.professional,
         day=day,
         exclude_reservation_id=reservation.id,
+        duration_minutes=reservation.duration_minutes,
     )
 
 

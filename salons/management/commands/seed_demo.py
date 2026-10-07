@@ -6,7 +6,8 @@ from accounts.models import User
 from django.conf import settings
 from django.utils import timezone
 from salons.booking import available_slots
-from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, Reservation, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
+from salons.rewards import available_reward
+from salons.models import Branch, BranchService, HairSalon, Membership, MembershipBranch, Professional, ProfessionalBranch, ProfessionalService, Reservation, RewardProgram, ScheduleBreak, Service, WorkSchedule
 
 
 class Command(BaseCommand):
@@ -29,9 +30,9 @@ class Command(BaseCommand):
 
         norte, _ = HairSalon.objects.update_or_create(slug="estilo-norte", defaults={"name": "Estilo Norte", "active": True})
         sur, _ = HairSalon.objects.update_or_create(slug="casa-sur", defaults={"name": "Casa Sur", "active": True})
-        centro, _ = Branch.objects.update_or_create(salon=norte, name="Centro", defaults={"address": "18 de Julio 1234", "phone": "2900 1111"})
-        pocitos, _ = Branch.objects.update_or_create(salon=norte, name="Pocitos", defaults={"address": "Benito Blanco 920", "phone": "2700 2222"})
-        cordon, _ = Branch.objects.update_or_create(salon=sur, name="Cordón", defaults={"address": "Gaboto 1540", "phone": "2410 3333"})
+        centro, _ = Branch.objects.update_or_create(salon=norte, name="Centro", defaults={"address": "18 de Julio 1234", "phone": "2900 1111", "active": True})
+        pocitos, _ = Branch.objects.update_or_create(salon=norte, name="Pocitos", defaults={"address": "Benito Blanco 920", "phone": "2700 2222", "active": True})
+        cordon, _ = Branch.objects.update_or_create(salon=sur, name="Cordón", defaults={"address": "Gaboto 1540", "phone": "2410 3333", "active": True})
 
         memberships = [
             (owner_norte, norte, Membership.Role.OWNER, [centro, pocitos]),
@@ -45,17 +46,17 @@ class Command(BaseCommand):
             for branch in branches:
                 MembershipBranch.objects.create(membership=membership, branch=branch)
 
-        sofia, _ = Professional.objects.update_or_create(salon=norte, display_name="Sofía", defaults={"user": peluquero_norte})
-        diego, _ = Professional.objects.update_or_create(salon=norte, display_name="Diego", defaults={"user": None})
-        vale, _ = Professional.objects.update_or_create(salon=sur, display_name="Valentina", defaults={"user": None})
+        sofia, _ = Professional.objects.update_or_create(salon=norte, display_name="Sofía", defaults={"user": peluquero_norte, "active": True})
+        diego, _ = Professional.objects.update_or_create(salon=norte, display_name="Diego", defaults={"user": None, "active": True})
+        vale, _ = Professional.objects.update_or_create(salon=sur, display_name="Valentina", defaults={"user": None, "active": True})
         for professional, branches in [(sofia, [pocitos]), (diego, [centro]), (vale, [cordon])]:
             ProfessionalBranch.objects.filter(professional=professional).delete()
             for branch in branches:
                 ProfessionalBranch.objects.create(professional=professional, branch=branch)
 
-        corte_norte, _ = Service.objects.get_or_create(salon=norte, name="Corte")
-        color_norte, _ = Service.objects.get_or_create(salon=norte, name="Color")
-        corte_sur, _ = Service.objects.get_or_create(salon=sur, name="Corte clásico")
+        corte_norte, _ = Service.objects.update_or_create(salon=norte, name="Corte", defaults={"active": True})
+        color_norte, _ = Service.objects.update_or_create(salon=norte, name="Color", defaults={"active": True})
+        corte_sur, _ = Service.objects.update_or_create(salon=sur, name="Corte clásico", defaults={"active": True})
         for professional, services in [(sofia, [corte_norte, color_norte]), (diego, [corte_norte]), (vale, [corte_sur])]:
             ProfessionalService.objects.filter(professional=professional).delete()
             for service in services:
@@ -86,8 +87,13 @@ class Command(BaseCommand):
             (norte, centro, corte_norte, diego, "cliente.norte@example.test"),
             (sur, cordon, corte_sur, vale, "cliente.sur@example.test"),
         ]
+        # Las reservas ya operadas (con auditoría o historial) se conservan; solo
+        # se crea una nueva cuando no queda ninguna reserva demo próxima.
         for salon, branch, service, professional, email in demo_reservations:
-            Reservation.objects.filter(salon=salon, email=email).delete()
+            if Reservation.objects.filter(
+                salon=salon, email=email, status=Reservation.Status.CONFIRMED, starts_at__gte=timezone.now(),
+            ).exists():
+                continue
             slots = available_slots(
                 salon=salon,
                 branch=branch,
@@ -121,12 +127,14 @@ class Command(BaseCommand):
                 "discount_percent": 15,
             },
         )
+        # Los servicios atendidos se crean una sola vez por día. Un canje ya
+        # registrado es historial: no se borra para rehabilitar la recompensa.
         reward_email = "cliente.recompensa@example.test"
-        RewardRedemption.objects.filter(salon=norte, customer_email=reward_email).delete()
-        Reservation.objects.filter(salon=norte, email=reward_email).delete()
         local_tz = ZoneInfo(settings.TIME_ZONE)
         for hour in (7, 8):
             starts_at = timezone.make_aware(datetime.combine(timezone.localdate(), time(hour, 0)), local_tz)
+            if Reservation.objects.filter(salon=norte, email=reward_email, starts_at=starts_at).exists():
+                continue
             Reservation.objects.create(
                 salon=norte,
                 branch=centro,
@@ -143,4 +151,8 @@ class Command(BaseCommand):
                 notes="Servicio atendido para demostrar el programa de recompensas.",
             )
 
+        if not available_reward(norte, reward_email):
+            self.stdout.write(self.style.WARNING(
+                f"La recompensa demo de {reward_email} ya fue canjeada en el período actual; se conserva el canje."
+            ))
         self.stdout.write(self.style.SUCCESS("Datos demo listos. Contraseña común: DemoTuTurno2026!"))

@@ -12,11 +12,17 @@ S = Reservation.Status
 TRANSITIONS = {
     S.CONFIRMED: {"complete": S.COMPLETED, "no_show": S.NO_SHOW, "cancel": S.CANCELLED_SALON},
 }
+# Atendida y Ausente solo tienen sentido desde el inicio del turno.
+REQUIRES_STARTED = {"complete", "no_show"}
+
+
+def has_started(reservation):
+    return timezone.now() >= reservation.starts_at
 
 
 def reservation_actions(user, reservation):
     confirmed = reservation.status == S.CONFIRMED
-    can_operate = can_complete_reservation(user, reservation)
+    can_operate = can_complete_reservation(user, reservation) and has_started(reservation)
     can_manage = can_manage_reservation(user, reservation)
     return {
         "can_complete": confirmed and can_operate,
@@ -39,6 +45,8 @@ def change_reservation_status(*, user, pk, action):
     target = TRANSITIONS.get(reservation.status, {}).get(action)
     if target is None:
         raise PermissionDenied("La reserva ya no admite ese cambio.")
+    if action in REQUIRES_STARTED and not has_started(reservation):
+        raise PermissionDenied("La reserva todavía no comenzó.")
     previous = reservation.status
     reservation.status = target
     fields = ["status"]

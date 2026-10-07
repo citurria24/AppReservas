@@ -350,16 +350,23 @@ def agenda(request):
     day_start = timezone.make_aware(datetime.combine(selected_date, time.min), local_tz)
     day_end = day_start + timedelta(days=1)
     reservations = accessible_reservations_for(request.user).filter(starts_at__gte=day_start, starts_at__lt=day_end)
+    branches = accessible_branches_for(request.user).select_related("salon")
     branch_id = request.GET.get("branch")
     if branch_id:
-        reservations = reservations.filter(branch_id=branch_id)
+        try:
+            branch_pk = int(branch_id)
+        except ValueError:
+            return HttpResponseBadRequest("Sucursal inválida.")
+        # Inexistente, ajena o no autorizada responden igual para no revelar otros tenants.
+        branch = get_object_or_404(branches, pk=branch_pk)
+        reservations = reservations.filter(branch=branch)
     items = [
         {"reservation": reservation, **reservation_actions(request.user, reservation)}
         for reservation in reservations.order_by("starts_at")
     ]
     context = {
         "items": items,
-        "branches": accessible_branches_for(request.user).select_related("salon"),
+        "branches": branches,
         "selected_date": selected_date,
         "selected_branch": branch_id or "",
         "can_bulk_complete": managing_memberships(request.user).exists(),

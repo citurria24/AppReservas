@@ -10,8 +10,11 @@ def booking_horizon_end(salon):
     return timezone.localdate() + timedelta(days=salon.max_booking_horizon_days)
 
 
-def available_slots(*, salon, branch, service, professional, day, exclude_reservation_id=None):
+def available_slots(*, salon, branch, service, professional, day, exclude_reservation_id=None, duration_minutes=None):
+    """Horarios libres. duration_minutes permite usar la duración guardada de una reserva existente."""
     if branch.salon_id != salon.id or service.salon_id != salon.id or professional.salon_id != salon.id:
+        return []
+    if not professional.active:
         return []
     if not professional.branches.filter(id=branch.id, active=True).exists():
         return []
@@ -25,7 +28,7 @@ def available_slots(*, salon, branch, service, professional, day, exclude_reserv
         return []
 
     tz = ZoneInfo(settings.TIME_ZONE)
-    duration = timedelta(minutes=offering.duration_minutes)
+    duration = timedelta(minutes=duration_minutes or offering.duration_minutes)
     step = timedelta(minutes=salon.slot_interval_minutes)
     earliest_start = timezone.now() + timedelta(minutes=salon.min_booking_notice_minutes)
     slots = []

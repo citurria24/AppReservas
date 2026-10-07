@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -15,6 +16,11 @@ from salons.models import (
     Reservation,
     Service,
 )
+
+
+def after_start(reservation):
+    """Atendida/Ausente solo se permiten desde el inicio de la reserva."""
+    return patch("django.utils.timezone.now", return_value=reservation.starts_at + timedelta(minutes=1))
 
 
 class AgendaPermissionTests(TestCase):
@@ -103,7 +109,8 @@ class AgendaPermissionTests(TestCase):
         self.client.force_login(self.hairdresser)
         response = self.client.post(reverse("reservation-status", args=[self.own_reservation.id]), {"action": "cancel"})
         self.assertEqual(response.status_code, 403)
-        response = self.client.post(reverse("reservation-status", args=[self.own_reservation.id]), {"action": "complete"})
+        with after_start(self.own_reservation):
+            response = self.client.post(reverse("reservation-status", args=[self.own_reservation.id]), {"action": "complete"})
         self.assertEqual(response.status_code, 302)
         self.own_reservation.refresh_from_db()
         self.assertEqual(self.own_reservation.status, Reservation.Status.COMPLETED)

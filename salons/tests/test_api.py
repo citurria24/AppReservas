@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from salons.models import Reservation, ReservationStatusChange, Membership
 from salons.tests import test_agenda
+from salons.tests.test_agenda import after_start
 
 
 class ReactApiTests(TestCase):
@@ -58,7 +59,8 @@ class ReactApiTests(TestCase):
 
     def test_owner_agenda_actions_and_cross_tenant_isolation(self):
         self.login()
-        data = self.agenda().json()
+        with after_start(self.own_reservation):
+            data = self.agenda().json()
         self.assertEqual(data['summary']['total'], 2)
         row = next(r for r in data['reservations'] if r['id'] == self.own_reservation.pk)
         self.assertEqual(set(row['allowed_actions']), {'mark_attended', 'mark_absent', 'reschedule', 'cancel_local'})
@@ -77,7 +79,8 @@ class ReactApiTests(TestCase):
 
     def test_hairdresser_only_own_reservation_and_actions(self):
         self.login(self.hairdresser)
-        data = self.agenda().json()
+        with after_start(self.own_reservation):
+            data = self.agenda().json()
         self.assertEqual(len(data['reservations']), 1)
         self.assertEqual(set(data['reservations'][0]['allowed_actions']), {'mark_attended', 'mark_absent'})
         self.assertFalse(data['can_bulk_complete'])
@@ -98,7 +101,8 @@ class ReactApiTests(TestCase):
         self.login()
         for action, status in [('mark_attended', 'completed'), ('mark_absent', 'no_show'), ('cancel_local', 'cancelled_salon')]:
             Reservation.objects.filter(pk=self.own_reservation.pk).update(status='confirmed', cancelled_at=None)
-            self.assertEqual(self.action(self.own_reservation, action).status_code, 200)
+            with after_start(self.own_reservation):
+                self.assertEqual(self.action(self.own_reservation, action).status_code, 200)
             self.own_reservation.refresh_from_db()
             self.assertEqual(self.own_reservation.status, status)
             self.assertEqual(self.own_reservation.status_changes.latest('pk').changed_by, self.owner)
@@ -197,7 +201,8 @@ class ReactApiTests(TestCase):
         self.assertEqual(denied.status_code, 403)
         self.assertEqual(denied['Content-Type'], 'application/json')
         self.assertFalse(ReservationStatusChange.objects.exists())
-        result = client.post(url, {'action': 'mark_attended'}, content_type='application/json', HTTP_X_CSRFTOKEN=token, HTTP_ORIGIN='http://localhost:5173')
+        with after_start(self.own_reservation):
+            result = client.post(url, {'action': 'mark_attended'}, content_type='application/json', HTTP_X_CSRFTOKEN=token, HTTP_ORIGIN='http://localhost:5173')
         self.assertEqual(result.status_code, 200)
 
     def test_django_template_pages_still_work(self):
