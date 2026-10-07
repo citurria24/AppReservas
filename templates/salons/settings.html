@@ -5,19 +5,36 @@
   <div class="page-heading">
     <a class="back" href="{% url 'salon-detail' salon.slug %}">← Volver a {{ salon.name }}</a>
     <p class="eyebrow">Políticas de reservas</p>
-    <h1>Cancelaciones</h1>
-    <p>Definí hasta qué momento puede cancelar un cliente. Los cambios afectan únicamente a reservas nuevas.</p>
+    <h1>Configuración operativa</h1>
+    <p>Reglas de agenda, límites y cancelaciones de {{ salon.name }}. La anticipación para cancelar se guarda en cada reserva nueva; el resto se aplica a partir de su próximo uso.</p>
   </div>
-  <form method="post" class="panel booking-form">
-    {% csrf_token %}
-    {% if saved %}<div class="success-notice">Configuración guardada.</div>{% endif %}
-    <div class="field">
-      <label for="{{ form.cancellation_notice_hours.id_for_label }}">{{ form.cancellation_notice_hours.label }}</label>
-      {{ form.cancellation_notice_hours }}
-      <small class="muted">{{ form.cancellation_notice_hours.help_text }}</small>
-      {{ form.cancellation_notice_hours.errors }}
-    </div>
-    <button class="primary" type="submit">Guardar política</button>
+  <div class="panel booking-form">
+    {% if can_edit_policies %}
+      <form method="post" class="booking-form">
+        {% csrf_token %}
+        {% if saved %}<div class="success-notice">Configuración guardada.</div>{% endif %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+          <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            <small class="muted">{{ field.help_text }}</small>
+            {{ field.errors }}
+          </div>
+        {% endfor %}
+        <button class="primary" type="submit">Guardar políticas</button>
+      </form>
+    {% else %}
+      <dl class="summary">
+        <div><dt>Intervalo de turnos</dt><dd>{{ salon.get_slot_interval_minutes_display }}</dd></div>
+        <div><dt>Anticipación para reservar</dt><dd>{{ salon.min_booking_notice_minutes }} min</dd></div>
+        <div><dt>Horizonte de reserva</dt><dd>{{ salon.max_booking_horizon_days }} días</dd></div>
+        <div><dt>Reservas por cliente y día</dt><dd>{{ salon.max_daily_bookings_per_client }}</dd></div>
+        <div><dt>Anticipación para cancelar</dt><dd>{{ salon.cancellation_notice_hours }} h</dd></div>
+        <div><dt>Bloqueo por cancelaciones</dt><dd>{{ salon.cancellation_block_threshold }} en {{ salon.cancellation_block_window_days }} días → {{ salon.cancellation_block_hours }} h</dd></div>
+      </dl>
+      <p class="muted">Solo el owner puede modificar estas políticas.</p>
+    {% endif %}
     <a class="secondary" href="{% url 'booking-limit-exceptions' salon.slug %}">Gestionar excepciones al límite diario</a>
     <a class="secondary" href="{% url 'availability-settings' salon.slug %}">Gestionar jornadas y ausencias</a>
     {% if is_owner %}
@@ -27,6 +44,6 @@
       <a class="secondary" href="{% url 'team-management' salon.slug %}">Gestionar equipo y accesos</a>
       <a class="secondary" href="{% url 'reward-settings' salon.slug %}">Configurar recompensas</a>
     {% endif %}
-  </form>
+  </div>
 </section>
 {% endblock %}

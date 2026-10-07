@@ -5,7 +5,7 @@
   <a class="back" href="{% url 'salon-settings' salon.slug %}">← Volver a configuración</a>
   <p class="eyebrow">Control de reservas</p>
   <h1>Excepciones al límite</h1>
-  <p>Cada autorización permite una reserva adicional por encima de las cinco activas del cliente para esa fecha.</p>
+  <p>Cada autorización permite una reserva adicional por encima del máximo de {{ salon.max_daily_bookings_per_client }} reservas activas del cliente para esa fecha.</p>
 </section>
 <div class="settings-grid">
   <form method="post" class="panel booking-form">

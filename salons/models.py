@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -11,18 +12,74 @@ from datetime import timedelta
 
 
 class HairSalon(models.Model):
+    class SlotInterval(models.IntegerChoices):
+        FIVE = 5, "Cada 5 minutos"
+        TEN = 10, "Cada 10 minutos"
+        FIFTEEN = 15, "Cada 15 minutos"
+        TWENTY = 20, "Cada 20 minutos"
+        THIRTY = 30, "Cada 30 minutos"
+        SIXTY = 60, "Cada 60 minutos"
+
     name = models.CharField("nombre", max_length=160)
     slug = models.SlugField(unique=True)
     active = models.BooleanField("activa", default=True)
     cancellation_notice_hours = models.PositiveSmallIntegerField("anticipación mínima para cancelar", default=24)
+    # Granularidad de los inicios posibles; la duración pertenece a BranchService.
+    slot_interval_minutes = models.PositiveSmallIntegerField(
+        "intervalo entre inicios de turno", choices=SlotInterval.choices, default=SlotInterval.FIFTEEN
+    )
+    min_booking_notice_minutes = models.PositiveSmallIntegerField(
+        "anticipación mínima para reservar (minutos)", default=0, validators=[MaxValueValidator(10080)]
+    )
+    max_booking_horizon_days = models.PositiveSmallIntegerField(
+        "horizonte máximo de reserva (días)", default=60, validators=[MinValueValidator(1), MaxValueValidator(365)]
+    )
+    max_daily_bookings_per_client = models.PositiveSmallIntegerField(
+        "reservas activas por cliente y día", default=5, validators=[MinValueValidator(1), MaxValueValidator(50)]
+    )
+    cancellation_block_threshold = models.PositiveSmallIntegerField(
+        "cancelaciones que activan el bloqueo", default=3, validators=[MinValueValidator(1), MaxValueValidator(20)]
+    )
+    cancellation_block_window_days = models.PositiveSmallIntegerField(
+        "ventana de cancelaciones (días)", default=30, validators=[MinValueValidator(1), MaxValueValidator(365)]
+    )
+    cancellation_block_hours = models.PositiveSmallIntegerField(
+        "duración del bloqueo (horas)", default=24, validators=[MinValueValidator(1), MaxValueValidator(720)]
+    )
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    slot_interval_minutes__in=[5, 10, 15, 20, 30, 60],
+                    min_booking_notice_minutes__lte=10080,
+                    max_booking_horizon_days__gte=1,
+                    max_booking_horizon_days__lte=365,
+                    max_daily_bookings_per_client__gte=1,
+                    max_daily_bookings_per_client__lte=50,
+                    cancellation_block_threshold__gte=1,
+                    cancellation_block_threshold__lte=20,
+                    cancellation_block_window_days__gte=1,
+                    cancellation_block_window_days__lte=365,
+                    cancellation_block_hours__gte=1,
+                    cancellation_block_hours__lte=720,
+                ),
+                name="salon_operational_policies_valid",
+            ),
+        ]
         verbose_name = "peluquería"
         verbose_name_plural = "peluquerías"
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        if self.min_booking_notice_minutes is not None and self.max_booking_horizon_days is not None:
+            if self.min_booking_notice_minutes >= self.max_booking_horizon_days * 24 * 60:
+                raise ValidationError(
+                    {"min_booking_notice_minutes": "La anticipación mínima debe ser menor que el horizonte máximo de reserva."}
+                )
 
 
 class Branch(models.Model):

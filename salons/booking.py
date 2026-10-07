@@ -5,7 +5,9 @@ from django.utils import timezone
 from .models import BranchService, ProfessionalAbsence, Reservation, WorkSchedule
 
 
-SLOT_STEP_MINUTES = 15
+def booking_horizon_end(salon):
+    """Último día (local) en que la peluquería acepta reservas."""
+    return timezone.localdate() + timedelta(days=salon.max_booking_horizon_days)
 
 
 def available_slots(*, salon, branch, service, professional, day, exclude_reservation_id=None):
@@ -19,9 +21,13 @@ def available_slots(*, salon, branch, service, professional, day, exclude_reserv
     offering = BranchService.objects.filter(branch=branch, service=service, active=True).first()
     if not offering:
         return []
+    if day > booking_horizon_end(salon):
+        return []
 
     tz = ZoneInfo(settings.TIME_ZONE)
     duration = timedelta(minutes=offering.duration_minutes)
+    step = timedelta(minutes=salon.slot_interval_minutes)
+    earliest_start = timezone.now() + timedelta(minutes=salon.min_booking_notice_minutes)
     slots = []
     schedules = WorkSchedule.objects.filter(
         professional=professional,
@@ -55,8 +61,8 @@ def available_slots(*, salon, branch, service, professional, day, exclude_reserv
             if exclude_reservation_id:
                 reservations = reservations.exclude(pk=exclude_reservation_id)
             has_reservation = reservations.exists()
-            if candidate > timezone.now() and not crosses_break and not has_absence and not has_reservation:
+            if candidate >= earliest_start and not crosses_break and not has_absence and not has_reservation:
                 slots.append(candidate)
-            candidate += timedelta(minutes=SLOT_STEP_MINUTES)
+            candidate += step
 
     return sorted(set(slots))

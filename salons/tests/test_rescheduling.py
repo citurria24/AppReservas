@@ -291,5 +291,5 @@ class ReservationReschedulingTests(TestCase):
             self.payload(),
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "cinco reservas activas")
+        self.assertContains(response, "5 reservas activas")
         self.assertEqual(ReservationReschedule.objects.count(), 0)

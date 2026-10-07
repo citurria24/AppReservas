@@ -15,6 +15,7 @@
       <div class="account">
         <a class="nav-link" href="{% url 'agenda' %}">Agenda</a>
         {% for owner_salon in owner_salons %}<a class="nav-link" href="{% url 'statistics' owner_salon.slug %}">Estadísticas{% if owner_salons|length > 1 %} · {{ owner_salon.name }}{% endif %}</a>{% endfor %}
+        {% for settings_salon in settings_salons %}<a class="nav-link" href="{% url 'salon-settings' settings_salon.slug %}">Configuración{% if settings_salons|length > 1 %} · {{ settings_salon.name }}{% endif %}</a>{% endfor %}
         <span>{{ user.get_full_name|default:user.username }}</span>
         <form method="post" action="{% url 'logout' %}">
           {% csrf_token %}

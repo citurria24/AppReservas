@@ -11,11 +11,13 @@ class SimplifiedStatusMigrationTests(TransactionTestCase):
     create_reservation = classmethod(test_agenda.AgendaPermissionTests.create_reservation.__func__)
 
     def test_conversion_preserves_reservations_audit_and_overlap_protection(self):
+        # Fixtures use the current models, so create them before rolling back:
+        # later migrations may add columns that 0008 does not have.
+        test_agenda.AgendaPermissionTests.setUpTestData.__func__(type(self))
         executor = MigrationExecutor(connection)
         executor.migrate([('salons', '0008_reservationstatuschange_and_more')])
         old_apps = executor.loader.project_state([('salons', '0008_reservationstatuschange_and_more')]).apps
         try:
-            test_agenda.AgendaPermissionTests.setUpTestData.__func__(type(self))
             old_reservations = old_apps.get_model('salons', 'Reservation')
             old_history = old_apps.get_model('salons', 'ReservationStatusChange')
             old_reservations.objects.filter(pk=self.own_reservation.pk).update(status='in_progress')
@@ -48,4 +50,5 @@ class SimplifiedStatusMigrationTests(TransactionTestCase):
                 import_module('salons.migrations.0009_simplify_reservation_status').restore_confirmed(apps, connection.schema_editor())
             self.assertEqual(audit.objects.count(), 2)
         finally:
-            MigrationExecutor(connection).migrate([('salons', '0009_simplify_reservation_status')])
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

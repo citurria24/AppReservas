@@ -3,6 +3,25 @@ from django.db.models import Q
 from .models import Branch, HairSalon, Membership, Reservation
 
 
+MANAGE_OPERATIONAL_SETTINGS = "manage_operational_settings"
+
+# Permisos de peluquería que cada rol recibe por defecto. El owner los tiene
+# siempre todos. Cuando existan permisos configurables por admin, se resolverán
+# en membership_has_permission sin cambiar a quienes la consultan.
+DEFAULT_ROLE_PERMISSIONS = {
+    Membership.Role.ADMIN: frozenset(),
+    Membership.Role.HAIRDRESSER: frozenset(),
+}
+
+
+def membership_has_permission(membership, permission):
+    if membership is None or not membership.active:
+        return False
+    if membership.role == Membership.Role.OWNER:
+        return True
+    return permission in DEFAULT_ROLE_PERMISSIONS.get(membership.role, frozenset())
+
+
 def active_memberships_for(user):
     if not user.is_authenticated:
         return Membership.objects.none()

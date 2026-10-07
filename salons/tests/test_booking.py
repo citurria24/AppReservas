@@ -293,7 +293,7 @@ class PublicBookingTests(TestCase):
         self.verify_guest()
         response = self.post_booking(selected)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Ya tenés cinco reservas activas")
+        self.assertContains(response, "Ya tenés 5 reservas activas")
         self.assertEqual(Reservation.objects.filter(email="cliente@example.test").count(), 5)
 
     def test_single_use_admin_exception_allows_sixth_reservation(self):

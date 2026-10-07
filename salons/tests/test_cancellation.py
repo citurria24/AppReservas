@@ -40,18 +40,30 @@ class CancellationPolicyTests(TestCase):
             cancellation_notice_hours=notice,
         )
 
-    def test_owner_and_admin_can_update_policy(self):
+    def policy_payload(self, **changes):
+        return {
+            "slot_interval_minutes": 15,
+            "min_booking_notice_minutes": 0,
+            "max_booking_horizon_days": 60,
+            "max_daily_bookings_per_client": 5,
+            "cancellation_notice_hours": 24,
+            "cancellation_block_threshold": 3,
+            "cancellation_block_window_days": 30,
+            "cancellation_block_hours": 24,
+        } | changes
+
+    def test_owner_can_update_policy_and_admin_cannot_by_default(self):
         url = reverse("salon-settings", args=[self.salon.slug])
         self.client.force_login(self.owner)
-        response = self.client.post(url, {"cancellation_notice_hours": 48})
+        response = self.client.post(url, self.policy_payload(cancellation_notice_hours=48))
         self.assertEqual(response.status_code, 200)
         self.salon.refresh_from_db()
         self.assertEqual(self.salon.cancellation_notice_hours, 48)
         self.client.force_login(self.admin)
-        response = self.client.post(url, {"cancellation_notice_hours": 36})
-        self.assertEqual(response.status_code, 200)
+        response = self.client.post(url, self.policy_payload(cancellation_notice_hours=36))
+        self.assertEqual(response.status_code, 403)
         self.salon.refresh_from_db()
-        self.assertEqual(self.salon.cancellation_notice_hours, 36)
+        self.assertEqual(self.salon.cancellation_notice_hours, 48)
 
     def test_hairdresser_cannot_update_policy(self):
         self.client.force_login(self.hairdresser)

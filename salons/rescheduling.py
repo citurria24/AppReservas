@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import ngettext
 
 from .booking import available_slots
 from .email_delivery import send_reservation_rescheduled_email
@@ -58,10 +59,13 @@ def reschedule_reservation(*, reservation, day, slot_value, source, changed_by, 
             raise RescheduleError("Ese horario ya no está disponible. Elegí otro.", field="slot")
         if selected == locked.starts_at:
             raise RescheduleError("Elegí un horario diferente al actual.", field="slot")
-        if _active_reservations_for_target_day(locked, day).count() >= 5:
-            raise RescheduleError(
-                "El cliente ya tiene cinco reservas activas para esa fecha en esta peluquería."
-            )
+        limit = locked.salon.max_daily_bookings_per_client
+        if _active_reservations_for_target_day(locked, day).count() >= limit:
+            raise RescheduleError(ngettext(
+                "El cliente ya tiene %(limit)d reserva activa para esa fecha en esta peluquería, que es el máximo permitido.",
+                "El cliente ya tiene %(limit)d reservas activas para esa fecha en esta peluquería, que es el máximo permitido.",
+                limit,
+            ) % {"limit": limit})
 
         previous_starts_at = locked.starts_at
         previous_ends_at = locked.ends_at

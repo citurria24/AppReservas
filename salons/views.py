@@ -15,12 +15,15 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import ngettext
 from .access import (
+    MANAGE_OPERATIONAL_SETTINGS,
     accessible_branches_for,
     accessible_reservations_for,
     active_memberships_for,
     can_manage_reservation,
     get_accessible_salon_or_404,
+    membership_has_permission,
 )
 from .booking import available_slots
 from .cancellation_policy import active_cancellation_booking_block
@@ -94,7 +97,10 @@ def salon_settings(request, slug):
     membership = active_memberships_for(request.user).get(salon=salon)
     if membership.role not in {Membership.Role.OWNER, Membership.Role.ADMIN}:
         raise PermissionDenied
-    form = SalonPolicyForm(request.POST or None, instance=salon)
+    can_edit_policies = membership_has_permission(membership, MANAGE_OPERATIONAL_SETTINGS)
+    if request.method == "POST" and not can_edit_policies:
+        raise PermissionDenied
+    form = SalonPolicyForm(request.POST or None, instance=salon) if can_edit_policies else None
     saved = False
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -102,7 +108,13 @@ def salon_settings(request, slug):
     return render(
         request,
         "salons/settings.html",
-        {"salon": salon, "form": form, "saved": saved, "is_owner": membership.role == Membership.Role.OWNER},
+        {
+            "salon": salon,
+            "form": form,
+            "saved": saved,
+            "can_edit_policies": can_edit_policies,
+            "is_owner": membership.role == Membership.Role.OWNER,
+        },
     )
 
 
@@ -380,6 +392,7 @@ def _reschedule_form(request, reservation, *, source, changed_by=None):
     initial_day = _reschedule_initial_day(reservation)
     form = RescheduleForm(
         request.POST or None,
+        salon=reservation.salon,
         initial={"date": initial_day} if request.method == "GET" else None,
     )
     updated = None
@@ -625,7 +638,7 @@ def booking_create(request, slug):
                         starts_at__lt=day_end,
                     ).count()
                     limit_exception = None
-                    if active_count >= 5:
+                    if active_count >= salon.max_daily_bookings_per_client:
                         limit_exception = BookingLimitException.objects.select_for_update().filter(
                             salon=salon,
                             customer_email__iexact=guest["email"],
@@ -669,7 +682,12 @@ def booking_create(request, slug):
             except CancellationBookingBlockReached as error:
                 cancellation_block = error.block
             except BookingLimitReached:
-                form.add_error(None, "Ya tenés cinco reservas activas para esa fecha en esta peluquería.")
+                limit = salon.max_daily_bookings_per_client
+                form.add_error(None, ngettext(
+                    "Ya tenés %(limit)d reserva activa para esa fecha en esta peluquería, que es el máximo permitido.",
+                    "Ya tenés %(limit)d reservas activas para esa fecha en esta peluquería, que es el máximo permitido.",
+                    limit,
+                ) % {"limit": limit})
             except EmailDeliveryError:
                 form.add_error(
                     None,

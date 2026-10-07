@@ -1,5 +1,6 @@
 from django import forms
 from django.utils import timezone
+from .booking import booking_horizon_end
 from .models import (
     BookingLimitException,
     Branch,
@@ -25,6 +26,16 @@ class GuestVerifyForm(forms.Form):
     code = forms.CharField(label="Código de verificación", min_length=6, max_length=6)
 
 
+def clean_booking_date(salon, value):
+    if value < timezone.localdate():
+        raise forms.ValidationError("Elegí una fecha actual o futura.")
+    if value > booking_horizon_end(salon):
+        raise forms.ValidationError(
+            f"Se puede reservar con hasta {salon.max_booking_horizon_days} días de anticipación."
+        )
+    return value
+
+
 class BookingForm(forms.Form):
     branch = forms.ModelChoiceField(label="Sucursal", queryset=Branch.objects.none())
     service = forms.ModelChoiceField(label="Servicio", queryset=Service.objects.none())
@@ -40,36 +51,68 @@ class BookingForm(forms.Form):
         self.fields["service"].queryset = salon.services.filter(active=True, branch_offerings__active=True).distinct()
         self.fields["professional"].queryset = salon.professionals.filter(active=True).distinct()
         self.fields["date"].widget.attrs["min"] = timezone.localdate().isoformat()
+        self.fields["date"].widget.attrs["max"] = booking_horizon_end(salon).isoformat()
 
     def clean_date(self):
-        value = self.cleaned_data["date"]
-        if value < timezone.localdate():
-            raise forms.ValidationError("Elegí una fecha actual o futura.")
-        return value
+        return clean_booking_date(self.salon, self.cleaned_data["date"])
 
 
 class RescheduleForm(forms.Form):
     date = forms.DateField(label="Nueva fecha", widget=forms.DateInput(attrs={"type": "date"}))
     slot = forms.CharField(widget=forms.HiddenInput())
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, salon, **kwargs):
         super().__init__(*args, **kwargs)
+        self.salon = salon
         self.fields["date"].widget.attrs["min"] = timezone.localdate().isoformat()
+        self.fields["date"].widget.attrs["max"] = booking_horizon_end(salon).isoformat()
 
     def clean_date(self):
-        value = self.cleaned_data["date"]
-        if value < timezone.localdate():
-            raise forms.ValidationError("Elegí una fecha actual o futura.")
-        return value
+        return clean_booking_date(self.salon, self.cleaned_data["date"])
 
 
 class SalonPolicyForm(forms.ModelForm):
     class Meta:
         model = HairSalon
-        fields = ["cancellation_notice_hours"]
-        labels = {"cancellation_notice_hours": "Horas mínimas de anticipación para cancelar"}
-        help_texts = {"cancellation_notice_hours": "El valor vigente se guardará dentro de cada nueva reserva."}
-        widgets = {"cancellation_notice_hours": forms.NumberInput(attrs={"min": 0, "max": 720})}
+        fields = [
+            "slot_interval_minutes",
+            "min_booking_notice_minutes",
+            "max_booking_horizon_days",
+            "max_daily_bookings_per_client",
+            "cancellation_notice_hours",
+            "cancellation_block_threshold",
+            "cancellation_block_window_days",
+            "cancellation_block_hours",
+        ]
+        labels = {
+            "slot_interval_minutes": "Intervalo entre inicios de turno",
+            "min_booking_notice_minutes": "Anticipación mínima para reservar (minutos)",
+            "max_booking_horizon_days": "Días máximos de anticipación para reservar",
+            "max_daily_bookings_per_client": "Reservas activas por cliente y día",
+            "cancellation_notice_hours": "Horas mínimas de anticipación para cancelar",
+            "cancellation_block_threshold": "Cancelaciones del cliente que activan un bloqueo",
+            "cancellation_block_window_days": "Ventana para contar cancelaciones (días)",
+            "cancellation_block_hours": "Duración del bloqueo (horas)",
+        }
+        help_texts = {
+            "slot_interval_minutes": "Define cada cuánto puede comenzar un turno. La duración de cada servicio se configura por sucursal.",
+            "min_booking_notice_minutes": "0 permite reservar cualquier horario futuro del día.",
+            "max_booking_horizon_days": "No se ofrecen turnos más allá de esta cantidad de días.",
+            "max_daily_bookings_per_client": "Suma todas las sucursales. Se pueden autorizar excepciones puntuales.",
+            "cancellation_notice_hours": "El valor vigente se guardará dentro de cada nueva reserva.",
+            "cancellation_block_threshold": "Las cancelaciones hechas por el local no cuentan.",
+            "cancellation_block_window_days": "Ventana móvil hacia atrás desde cada cancelación.",
+            "cancellation_block_hours": "Tiempo durante el cual el cliente no puede crear nuevas reservas.",
+        }
+        widgets = {
+            "min_booking_notice_minutes": forms.NumberInput(attrs={"min": 0, "max": 10080}),
+            "max_booking_horizon_days": forms.NumberInput(attrs={"min": 1, "max": 365}),
+            "max_daily_bookings_per_client": forms.NumberInput(attrs={"min": 1, "max": 50}),
+            "cancellation_notice_hours": forms.NumberInput(attrs={"min": 0, "max": 720}),
+            "cancellation_block_threshold": forms.NumberInput(attrs={"min": 1, "max": 20}),
+            "cancellation_block_window_days": forms.NumberInput(attrs={"min": 1, "max": 365}),
+            "cancellation_block_hours": forms.NumberInput(attrs={"min": 1, "max": 720}),
+        }
 
     def clean_cancellation_notice_hours(self):
         value = self.cleaned_data["cancellation_notice_hours"]
