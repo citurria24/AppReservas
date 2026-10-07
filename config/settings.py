@@ -122,3 +122,7 @@ if not DEBUG and EMAIL_BACKEND in {
     "django.core.mail.backends.filebased.EmailBackend",
 }:
     raise RuntimeError("El backend de correo configurado expone mensajes y no puede usarse con DJANGO_DEBUG=False")
+
+# Explicit development origins for the optional Vite frontend; empty otherwise.
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in env("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
+CSRF_FAILURE_VIEW = "salons.csrf.csrf_failure"

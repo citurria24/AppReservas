@@ -49,6 +49,22 @@ Después de verificar el correo, el enlace **Mis reservas** muestra únicamente 
 
 Google OAuth todavía requiere registrar la aplicación y aportar sus credenciales. En un entorno real también debe configurarse un backend SMTP o transaccional en lugar del backend de consola.
 
+## Frontend React opcional
+
+La primera etapa React migra únicamente Agenda y Estadísticas y convive con Django Templates/HTMX. Django conserva sesión, permisos, reglas de negocio, auditoría, reprogramación y Excel. No hay JWT ni cambios en el portal público.
+
+El entorno híbrido local se levanta con `docker compose -f compose.yaml -f compose.email.yaml -f compose.react.yaml build web frontend`, luego `docker compose -f compose.yaml -f compose.email.yaml -f compose.react.yaml up -d db mailpit`, `docker compose -f compose.yaml -f compose.email.yaml -f compose.react.yaml run --rm web python manage.py migrate` y `docker compose -f compose.yaml -f compose.email.yaml -f compose.react.yaml up -d web frontend`.
+
+- Agenda React: `http://localhost:5173/app/agenda`.
+- Estadísticas Owner demo: `http://localhost:5173/app/estadisticas/estilo-norte`.
+- Login Django vía proxy: `http://localhost:5173/cuenta/ingresar/?next=/app/agenda`.
+- Django actual en este entorno: `http://localhost:8012/agenda/`.
+- Mailpit: `http://localhost:8026/`.
+
+Los comandos de Compose base anteriores continúan siendo válidos sin React. El overlay de correo usa su volumen PostgreSQL existente; no se borran ni se copian datos entre volúmenes automáticamente. No hace falta Node en el host: el contenedor frontend incluye Node 24.
+
+La [guía técnica React](docs/frontend-react.md) describe endpoints JSON, sesión/CSRF, estructura, comandos, pruebas y reversibilidad. La [dirección visual oficial](docs/direccion-visual-react.md) define tokens y componentes. Para frontend se usan Vitest/Testing Library, `npm run build` y `npm run lint`, también ejecutables mediante Docker. No se integró ni desplegó todavía el build de producción.
+
 ## Agenda interna
 
 Los usuarios operativos acceden a `http://localhost:8000/agenda/` desde el enlace **Agenda** de la cabecera. Owner ve todas las reservas de su peluquería, admin solo las sucursales asignadas y peluquero únicamente sus propios turnos. Las reservas nuevas comienzan Confirmadas. Owner puede operar todas las reservas de su peluquería; admin, las sucursales autorizadas; peluquero, únicamente los turnos de su Professional vinculado en las sucursales asignadas. Desde Confirmada pueden marcarlas atendidas o ausentes. Ausente significa que el cliente no asistió al turno. Atendida, Ausente y ambas cancelaciones son finales. Owner/admin conservan la cancelación desde el local y la reprogramación únicamente de Confirmadas. Los badges y acciones se actualizan también mediante HTMX. `seed_demo` crea una reserva futura por peluquería para probar esta pantalla.

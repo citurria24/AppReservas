@@ -5,3 +5,7 @@ __pycache__
 *.pyc
 staticfiles
 
+
+frontend/node_modules
+frontend/dist
+frontend/coverage
