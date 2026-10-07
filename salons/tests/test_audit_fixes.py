@@ -14,7 +14,6 @@ from django.utils import timezone
 
 from salons.booking import available_slots
 from salons.models import (
-    BookingLimitException,
     Branch,
     BranchService,
     HairSalon,
@@ -349,59 +348,6 @@ class AvailabilityGuardTests(TestCase):
             "date": self.day.isoformat(),
         })
         self.assertNotContains(slots_response, slot.isoformat())
-
-
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class RescheduleBookingLimitExceptionTests(TestCase):
-    """Investigación: la reprogramación no consulta BookingLimitException.
-
-    Estos tests documentan el comportamiento ACTUAL, que se revisará en B3
-    junto con la centralización de las reglas de reserva.
-    """
-
-    @classmethod
-    def setUpTestData(cls):
-        test_rescheduling.ReservationReschedulingTests.setUpTestData.__func__(cls)
-        HairSalon.objects.filter(pk=cls.salon.pk).update(max_daily_bookings_per_client=1)
-        cls.salon.refresh_from_db()
-        cls.reservation.refresh_from_db()
-
-    def reserve(self, day, hour):
-        starts = local(day, hour)
-        return Reservation.objects.create(
-            salon=self.salon, branch=self.branch, service=self.service, professional=self.professional,
-            first_name="Cliente", last_name="Demo", email=self.reservation.email, contact="099",
-            starts_at=starts, ends_at=starts + timedelta(minutes=30), duration_minutes=30,
-        )
-
-    def exception_for(self, day, reservation=None):
-        return BookingLimitException.objects.create(
-            salon=self.salon, customer_email=self.reservation.email, booking_date=day,
-            reason="Grupo familiar", created_by=self.owner, reservation=reservation,
-            used_at=timezone.now() if reservation else None,
-        )
-
-    def reschedule(self, reservation, day, hour):
-        return reschedule_reservation(
-            reservation=reservation, day=day, slot_value=local(day, hour).isoformat(),
-            source=ReservationReschedule.Source.SALON, changed_by=self.owner, request=RequestFactory().get("/"),
-        )
-
-    def test_reservation_created_with_exception_cannot_move_within_its_own_day(self):
-        extra = self.reserve(self.day, 15)
-        self.exception_for(self.day, reservation=extra)
-        with self.assertRaisesMessage(RescheduleError, "1 reserva activa"):
-            self.reschedule(extra, self.day, 16)
-
-    def test_unused_exception_is_neither_honored_nor_consumed_when_moving(self):
-        other_day = self.day + timedelta(days=7)
-        moving = self.reserve(other_day, 10)
-        exception = self.exception_for(self.day)
-        with self.assertRaisesMessage(RescheduleError, "1 reserva activa"):
-            self.reschedule(moving, self.day, 15)
-        exception.refresh_from_db()
-        self.assertIsNone(exception.used_at)
-        self.assertIsNone(exception.reservation_id)
 
 
 class SeedDemoTests(TestCase):

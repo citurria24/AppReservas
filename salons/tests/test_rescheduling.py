@@ -268,8 +268,10 @@ class ReservationReschedulingTests(TestCase):
         self.assertEqual(ReservationReschedule.objects.count(), 0)
 
     def test_daily_limit_is_enforced_when_moving(self):
+        # Mover dentro del mismo día no suma reservas; el límite aplica al día destino.
         local_tz = ZoneInfo(settings.TIME_ZONE)
-        first_start = timezone.make_aware(datetime.combine(self.day, time(6)), local_tz)
+        target_day = self.day + timedelta(days=7)
+        first_start = timezone.make_aware(datetime.combine(target_day, time(6)), local_tz)
         for index in range(5):
             starts = first_start + timedelta(minutes=index * 30)
             Reservation.objects.create(
@@ -285,10 +287,11 @@ class ReservationReschedulingTests(TestCase):
                 ends_at=starts + timedelta(minutes=30),
                 duration_minutes=30,
             )
+        target_slot = timezone.make_aware(datetime.combine(target_day, time(10)), local_tz)
         self.client.force_login(self.owner)
         response = self.client.post(
             reverse("reservation-reschedule", args=[self.reservation.id]),
-            self.payload(),
+            {"date": target_day.isoformat(), "slot": target_slot.isoformat()},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "5 reservas activas")

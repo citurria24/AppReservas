@@ -498,7 +498,8 @@ class BookingLimitException(models.Model):
     booking_date = models.DateField("fecha de las reservas")
     reason = models.CharField("motivo", max_length=300)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="granted_booking_exceptions", verbose_name="autorizada por")
-    reservation = models.OneToOneField(Reservation, on_delete=models.SET_NULL, related_name="limit_exception", null=True, blank=True, verbose_name="reserva que utilizó la excepción")
+    # ForeignKey: una reserva reprogramada a otro día puede consumir una segunda excepción.
+    reservation = models.ForeignKey(Reservation, on_delete=models.SET_NULL, related_name="limit_exceptions", null=True, blank=True, verbose_name="reserva que utilizó la excepción")
     used_at = models.DateTimeField("utilizada", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

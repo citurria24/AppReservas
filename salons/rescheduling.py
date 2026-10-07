@@ -1,14 +1,13 @@
-from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ngettext
 
 from .booking import available_slots
 from .email_delivery import send_reservation_rescheduled_email
-from .models import Reservation, ReservationReschedule
+from .models import HairSalon, Reservation, ReservationReschedule
+from .reservation_service import CustomerIdentity, DailyLimitReached, claim_daily_limit, consume_limit_exception
 
 
 class RescheduleError(Exception):
@@ -29,21 +28,10 @@ def slots_for_reservation(reservation, day):
     )
 
 
-def _active_reservations_for_target_day(reservation, day):
-    local_tz = ZoneInfo(settings.TIME_ZONE)
-    day_start = timezone.make_aware(datetime.combine(day, time.min), local_tz)
-    day_end = day_start + timedelta(days=1)
-    return Reservation.objects.filter(
-        salon=reservation.salon,
-        email__iexact=reservation.email,
-        status=Reservation.Status.CONFIRMED,
-        starts_at__gte=day_start,
-        starts_at__lt=day_end,
-    ).exclude(pk=reservation.pk)
-
-
 def reschedule_reservation(*, reservation, day, slot_value, source, changed_by, request):
     with transaction.atomic():
+        # Mismo orden de bloqueo que la creación (peluquería primero) para evitar deadlocks.
+        salon = HairSalon.objects.select_for_update().get(pk=reservation.salon_id)
         locked = Reservation.objects.select_for_update().select_related(
             "salon", "branch", "service", "professional"
         ).get(pk=reservation.pk)
@@ -60,19 +48,30 @@ def reschedule_reservation(*, reservation, day, slot_value, source, changed_by, 
             raise RescheduleError("Ese horario ya no está disponible. Elegí otro.", field="slot")
         if selected == locked.starts_at:
             raise RescheduleError("Elegí un horario diferente al actual.", field="slot")
-        limit = locked.salon.max_daily_bookings_per_client
-        if _active_reservations_for_target_day(locked, day).count() >= limit:
-            raise RescheduleError(ngettext(
-                "El cliente ya tiene %(limit)d reserva activa para esa fecha en esta peluquería, que es el máximo permitido.",
-                "El cliente ya tiene %(limit)d reservas activas para esa fecha en esta peluquería, que es el máximo permitido.",
-                limit,
-            ) % {"limit": limit})
+        # Moverla dentro del mismo día no suma reservas: el límite solo se aplica
+        # al cambiar de día, y una excepción usada en el día de origen no se traslada.
+        limit_exception = None
+        if day != timezone.localtime(locked.starts_at).date():
+            try:
+                limit_exception = claim_daily_limit(
+                    salon=salon,
+                    customer=CustomerIdentity.of_reservation(locked),
+                    day=day,
+                    exclude_reservation=locked,
+                )
+            except DailyLimitReached as error:
+                raise RescheduleError(ngettext(
+                    "El cliente ya tiene %(limit)d reserva activa para esa fecha en esta peluquería, que es el máximo permitido.",
+                    "El cliente ya tiene %(limit)d reservas activas para esa fecha en esta peluquería, que es el máximo permitido.",
+                    error.limit,
+                ) % {"limit": error.limit})
 
         previous_starts_at = locked.starts_at
         previous_ends_at = locked.ends_at
         locked.starts_at = selected
         locked.ends_at = selected + timedelta(minutes=locked.duration_minutes)
         locked.save()
+        consume_limit_exception(limit_exception, locked)
         ReservationReschedule.objects.create(
             reservation=locked,
             previous_starts_at=previous_starts_at,

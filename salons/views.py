@@ -45,19 +45,25 @@ from .forms import (
     ServiceManagementForm,
     WorkScheduleForm,
 )
-from .models import BookingLimitException, Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, ReservationReschedule, ReservationStatusChange, RewardProgram, RewardRedemption, ScheduleBreak, Service, WorkSchedule
+from .models import Branch, BranchService, GuestVerification, HairSalon, Membership, Professional, ProfessionalAbsence, Reservation, ReservationReschedule, ReservationStatusChange, RewardProgram, ScheduleBreak, Service, WorkSchedule
 from .rescheduling import RescheduleError, reschedule_reservation, slots_for_reservation
+from .reservation_service import (
+    CancellationBlockActive,
+    CustomerIdentity,
+    DailyLimitReached,
+    SlotUnavailable,
+    create_reservation,
+)
 from .rewards import available_reward
 from .reservation_status import change_reservation_status, reservation_actions
 
 
-class BookingLimitReached(Exception):
-    pass
-
-
-class CancellationBookingBlockReached(Exception):
-    def __init__(self, block):
-        self.block = block
+def _parse_slot(value):
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if timezone.is_aware(parsed) else None
 
 
 @login_required
@@ -615,92 +621,42 @@ def booking_create(request, slug):
         initial={"date": initial_date} if request.method == "GET" else None,
     )
     if request.method == "POST" and form.is_valid():
-        branch = form.cleaned_data["branch"]
-        service = form.cleaned_data["service"]
-        professional = form.cleaned_data["professional"]
-        day = form.cleaned_data["date"]
-        slots = available_slots(salon=salon, branch=branch, service=service, professional=professional, day=day)
-        selected = next((slot for slot in slots if slot.isoformat() == form.cleaned_data["slot"]), None)
-        if not selected:
+        starts_at = _parse_slot(form.cleaned_data["slot"])
+        if starts_at is None or timezone.localtime(starts_at).date() != form.cleaned_data["date"]:
             form.add_error("slot", "Ese horario ya no está disponible. Elegí otro.")
         else:
-            offering = BranchService.objects.get(branch=branch, service=service, active=True)
             try:
-                with transaction.atomic():
-                    HairSalon.objects.select_for_update().get(pk=salon.pk)
-                    cancellation_block = active_cancellation_booking_block(
-                        salon=salon,
-                        customer_email=guest["email"],
-                    )
-                    if cancellation_block:
-                        raise CancellationBookingBlockReached(cancellation_block)
-                    local_tz = ZoneInfo(settings.TIME_ZONE)
-                    day_start = timezone.make_aware(datetime.combine(day, time.min), local_tz)
-                    day_end = day_start + timedelta(days=1)
-                    active_count = Reservation.objects.filter(
-                        salon=salon,
-                        email__iexact=guest["email"],
-                        status=Reservation.Status.CONFIRMED,
-                        starts_at__gte=day_start,
-                        starts_at__lt=day_end,
-                    ).count()
-                    limit_exception = None
-                    if active_count >= salon.max_daily_bookings_per_client:
-                        limit_exception = BookingLimitException.objects.select_for_update().filter(
-                            salon=salon,
-                            customer_email__iexact=guest["email"],
-                            booking_date=day,
-                            used_at__isnull=True,
-                        ).first()
-                        if not limit_exception:
-                            raise BookingLimitReached
-                    reward = available_reward(salon, guest["email"])
-                    reservation = Reservation.objects.create(
-                        salon=salon,
-                        branch=branch,
-                        service=service,
-                        professional=professional,
+                reservation = create_reservation(
+                    salon=salon,
+                    branch=form.cleaned_data["branch"],
+                    service=form.cleaned_data["service"],
+                    professional=form.cleaned_data["professional"],
+                    starts_at=starts_at,
+                    customer=CustomerIdentity(
+                        email=guest["email"],
                         first_name=guest["first_name"],
                         last_name=guest["last_name"],
-                        email=guest["email"],
                         contact=guest["contact"],
-                        starts_at=selected,
-                        ends_at=selected + timedelta(minutes=offering.duration_minutes),
-                        duration_minutes=offering.duration_minutes,
-                        cancellation_notice_hours=salon.cancellation_notice_hours,
-                        reward_discount_percent=reward["program"].discount_percent if reward else 0,
-                        notes=form.cleaned_data["notes"],
-                    )
-                    if limit_exception:
-                        limit_exception.reservation = reservation
-                        limit_exception.used_at = timezone.now()
-                        limit_exception.save(update_fields=["reservation", "used_at"])
-                    if reward:
-                        RewardRedemption.objects.create(
-                            salon=salon,
-                            customer_email=guest["email"],
-                            period_start=reward["period_start"],
-                            period_end=reward["period_end"],
-                            attended_services=reward["attended"],
-                            discount_percent=reward["program"].discount_percent,
-                            reservation=reservation,
-                        )
-                    send_reservation_confirmation_email(request=request, reservation=reservation)
-            except CancellationBookingBlockReached as error:
+                    ),
+                    notes=form.cleaned_data["notes"],
+                    notify=lambda created: send_reservation_confirmation_email(request=request, reservation=created),
+                )
+            except SlotUnavailable as error:
+                form.add_error("slot", str(error))
+            except CancellationBlockActive as error:
                 cancellation_block = error.block
-            except BookingLimitReached:
-                limit = salon.max_daily_bookings_per_client
+            except DailyLimitReached as error:
                 form.add_error(None, ngettext(
                     "Ya tenés %(limit)d reserva activa para esa fecha en esta peluquería, que es el máximo permitido.",
                     "Ya tenés %(limit)d reservas activas para esa fecha en esta peluquería, que es el máximo permitido.",
-                    limit,
-                ) % {"limit": limit})
+                    error.limit,
+                ) % {"limit": error.limit})
             except EmailDeliveryError:
                 form.add_error(
                     None,
                     "No pudimos enviar la confirmación. La reserva no fue creada; intentá nuevamente.",
                 )
-            except (IntegrityError, ValidationError):
+            except ValidationError:
                 form.add_error("slot", "El horario acaba de ocuparse. Elegí otro.")
             else:
                 request.session["last_reservation_id"] = reservation.id
